@@ -1,19 +1,31 @@
 pico-8 cartridge // http://www.pico-8.com
 version 34
 __lua__
+// constants
+dt = 1.0 / 60.0
+grav = 9.81
+damp_x = 0.95
+// player states
+state_idl = 0
+state_wlk = 1
+state_jmp = 2
+state_fll = 3
+state_lnd = 4
+
+
 function _init()
-	// player position
+	
 	p = {}
+	p.mov = 20.0
+	p.face_r = true
+	p.state = state_idl
+	p.fc = 0
+	// player position
 	p.x = 64.0
-	p.y = 64.0
+	p.y = 64.0 
 	// player speed
 	p.dx = 0.0
 	p.dy = 0.0
-	p.mov = 20.0
-	// constants
-	dt = 1.0 / 60.0
-	grav = 9.81
-	damp_x = 0.95
 	// inputs
 	inp = {}
 	inp.left = false
@@ -26,7 +38,7 @@ function _update60()
 	update_vel()
 	update_pos()
 	collide()
-	rollmap()
+	update_state()
 end
 
 function update_inputs()
@@ -79,6 +91,62 @@ function collide()
 		p.dy = 0
 	end
 end
+
+function change_state(new_state)
+	p.fc = 0
+	p.state = new_state
+end
+
+function update_state()
+	// update frame count
+	p.fc += 1
+	// update facing direction
+	if (p.face_r and inp.left) p.face_r=false
+	if (not p.face_r and inp.right) p.face_r=true	
+	
+	// update player state
+	// idle
+	if (p.state == state_idl) then
+		if (inp.left or inp.right) then
+			change_state(state_wlk)
+		end
+		if (p.dy > 0) then
+			change_state(state_fll)
+		end
+		return
+	end
+	// walk
+	if (p.state == state_wlk) then
+		if (not inp.left and not inp.right) then
+				change_state(state_idl)
+		end
+		if (p.dy > 0) then
+			change_state(state_fll)
+		end
+		return
+	end
+	// jump
+	if (p.state == state_jmp) then
+		if (p.dy > 0) then
+			change_state(state_fll)
+		end
+		return
+	end
+	// fall
+	if (p.state == state_fll) then
+		if (p.dy == 0) then
+			change_state(state_lnd)
+		end
+		return
+	end	
+	// land
+	if (p.state == state_lnd) then
+		if (p.fc > 4) then
+			change_state(state_idl)
+		end
+		return
+	end	
+end
 -->8
 function _draw()
 	cls(1)
@@ -94,6 +162,9 @@ function _draw()
 	local for_x=-p.x
 	map(0,0,for_x+127,0,16,16)
 	map(0,0,for_x,0,16,16)
+	local spr_x = flr(p.x)-4
+	local spr_y = flr(p.y)-7
+	spr(1, spr_x, spr_y, 1.0, 1.0, not p.face_r, false)
 	pset(flr(p.x), flr(p.y), 12)
 end
 __gfx__
