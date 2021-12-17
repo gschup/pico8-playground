@@ -3,8 +3,14 @@ version 34
 __lua__
 // constants
 dt = 1.0 / 60.0
-grav = 9.81
-damp_x = 0.95
+grav = 400.0
+damp_x = 0.9
+max_vel = 500
+// move constants
+mov = 75.0
+// jump constants
+jmp_vel = -80.0
+max_hld_jmp = 10
 // player states
 state_idl = 0
 state_wlk = 1
@@ -16,16 +22,19 @@ state_lnd = 4
 function _init()
 	
 	p = {}
-	p.mov = 20.0
 	p.face_r = true
+	// state managment
 	p.state = state_idl
 	p.fc = 0
 	// player position
 	p.x = 64.0
-	p.y = 64.0 
+	p.y = 0.0 
 	// player speed
 	p.dx = 0.0
 	p.dy = 0.0
+	// jump
+	p.hld_jmp = 0
+	
 	// inputs
 	inp = {}
 	inp.left = false
@@ -39,27 +48,50 @@ function _update60()
 	update_pos()
 	collide()
 	update_state()
-	printh(p.state)
 end
 
 function update_inputs()
 	inp.left = false
 	inp.right = false
+	inp.jump = false
 	if (not (btn(⬅️) and btn(➡️))) then
 		if (btn(⬅️)) inp.left = true 
 		if (btn(➡️)) inp.right = true
 	end
+	if (btn(❎)) inp.jump = true
 end
 
 function update_vel()
+	// damping
+	p.dx *= damp_x
 	//gravity
 	p.dy += grav * dt
 	// movement
-	if (inp.left) p.dx = -p.mov
-	if (inp.right) p.dx = p.mov
-	// todo: clamp velocities
-	// damping
-	p.dx *= damp_x
+	if (inp.left) p.dx = -mov
+	if (inp.right) p.dx = mov
+	// grounded jump
+	if ((p.state == state_idl
+		or p.state == state_wlk)
+		and inp.jump) then
+		p.dy = jmp_vel
+		p.hld_jmp = max_hld_jmp
+	end
+	// hold jump
+	if (p.state == state_jmp) then
+		if (inp.jump and p.hld_jmp > 0) then
+			p.dy = min(p.dy, jmp_vel)
+			p.hld_jmp -= 1
+		else
+			p.hld_jmp = 0
+		end
+	end	
+	// clamp velocities
+	local v = sqrt(p.dx*p.dx+p.dy*p.dy)
+	if (v > max_vel) then
+		local vs = max_vel/v
+		p.dx*=vs
+		p.dy*=vs
+	end
 end
 
 function update_pos()
@@ -71,7 +103,7 @@ end
 function collide()
 	// bonk with screen bounds
 	// todo: replace with 
-	// intelligent colliison
+	// intelligent collision
 	if p.x < 0 then
 		p.x = 0
 		p.dx *= -1
@@ -114,6 +146,9 @@ function update_state()
 		if (p.dy > 0) then
 			change_state(state_fll)
 		end
+		if (p.dy < 0) then
+			change_state(state_jmp)
+		end
 		return
 	end
 	// walk
@@ -123,6 +158,9 @@ function update_state()
 		end
 		if (p.dy > 0) then
 			change_state(state_fll)
+		end
+		if (p.dy < 0) then
+			change_state(state_jmp)
 		end
 		return
 	end
