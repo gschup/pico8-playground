@@ -8,8 +8,8 @@ damp_x = 0.95
 // player states
 state_idl = 0
 state_wlk = 1
-state_ju = 2
-state_jd = 3
+state_jmp = 2
+state_fll = 3
 state_lnd = 4
 
 
@@ -93,6 +93,11 @@ function collide()
 	end
 end
 
+function change_state(new_state)
+	p.fc = 0
+	p.state = new_state
+end
+
 function update_state()
 	// update frame count
 	p.fc += 1
@@ -101,23 +106,54 @@ function update_state()
 	if (not p.face_r and inp.right) p.face_r=true	
 	
 	// update player state
+	// idle
 	if (p.state == state_idl) then
 		if (inp.left or inp.right) then
-			p.state = state_wlk
-			p.fc = 0
+			change_state(state_wlk)
+		end
+		if (p.dy > 0) then
+			change_state(state_fll)
 		end
 		return
 	end
+	// walk
 	if (p.state == state_wlk) then
 		if (not inp.left and not inp.right) then
-				p.state = state_idl
-				p.fc = 0
+				change_state(state_idl)
 		end
+		if (p.dy > 0) then
+			change_state(state_fll)
+		end
+		return
+	end
+	// jump
+	if (p.state == state_jmp) then
+		if (p.dy > 0) then
+			change_state(state_fll)
+		end
+		return
+	end
+	// fall
+	if (p.state == state_fll) then
+		if (p.dy == 0) then
+			change_state(state_lnd)
+		end
+		return
+	end	
+	// land
+	if (p.state == state_lnd) then
+		if (p.fc > 4) then
+			change_state(state_idl)
+		end
+		return
 	end	
 end
 -->8
 function _draw()
 	cls(1)
+	local spr_x = flr(p.x)-4
+	local spr_y = flr(p.y)-7
+	spr(1, spr_x, spr_y, 1.0, 1.0, not p.face_r, false)
 	pset(flr(p.x), flr(p.y), 12)
 end
 __gfx__
