@@ -1,19 +1,31 @@
 pico-8 cartridge // http://www.pico-8.com
 version 34
 __lua__
+// constants
+dt = 1.0 / 60.0
+grav = 9.81
+damp_x = 0.95
+// player states
+state_idl = 0
+state_wlk = 1
+state_ju = 2
+state_jd = 3
+state_lnd = 4
+
+
 function _init()
-	// player position
+	
 	p = {}
+	p.mov = 20.0
+	p.face_r = true
+	p.state = state_idl
+	p.fc = 0
+	// player position
 	p.x = 64.0
-	p.y = 64.0
+	p.y = 64.0 
 	// player speed
 	p.dx = 0.0
 	p.dy = 0.0
-	p.mov = 20.0
-	// constants
-	dt = 1.0 / 60.0
-	grav = 9.81
-	damp_x = 0.95
 	// inputs
 	inp = {}
 	inp.left = false
@@ -26,6 +38,8 @@ function _update60()
 	update_vel()
 	update_pos()
 	collide()
+	update_state()
+	printh(p.state)
 end
 
 function update_inputs()
@@ -77,6 +91,29 @@ function collide()
 		p.y = 127
 		p.dy = 0
 	end
+end
+
+function update_state()
+	// update frame count
+	p.fc += 1
+	// update facing direction
+	if (p.face_r and inp.left) p.face_r=false
+	if (not p.face_r and inp.right) p.face_r=true	
+	
+	// update player state
+	if (p.state == state_idl) then
+		if (inp.left or inp.right) then
+			p.state = state_wlk
+			p.fc = 0
+		end
+		return
+	end
+	if (p.state == state_wlk) then
+		if (not inp.left and not inp.right) then
+				p.state = state_idl
+				p.fc = 0
+		end
+	end	
 end
 -->8
 function _draw()
