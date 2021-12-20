@@ -9,10 +9,12 @@ max_vel = 500.0
 mov = 75.0
 jump_height = 24.0
 jump_time = 0.30
-fast_fall = 2.5
+fast_fall = 2.0
+max_rejumps = 1
 // derived constants
 grav = (2.0*jump_height)/(jump_time*jump_time)
 jmp_vel = -(2*jump_height)/jump_time
+
 // player states
 state_idl = 0
 state_wlk = 1
@@ -20,9 +22,7 @@ state_jmp = 2
 state_fll = 3
 state_lnd = 4
 
-
 function _init()
-	
 	p = {}
 	p.face_r = true
 	// state managment
@@ -36,6 +36,7 @@ function _init()
 	p.dy = 0.0
 	// jump
 	p.hld_jmp = false
+	p.rejumps = max_rejumps	
 	
 	// inputs
 	inp = {}
@@ -64,7 +65,6 @@ function update_inputs()
 end
 
 function update_vel()
-	local eff_grav = grav
 	// movement
 	if (inp.left) p.dx = -mov
 	if (inp.right) p.dx = mov
@@ -77,16 +77,29 @@ function update_vel()
 		p.hld_jmp = true
 	end
 	// hold jump
-	if (p.state == state_jmp) then
-		if (inp.jump 
+	if (inp.jump 
 			and p.hld_jmp) then
 			p.hld_jmp = true
 		else
 			p.hld_jmp = false
-			eff_grav = grav*fast_fall
+		end
+	// rejump
+	if ((p.state == state_jmp
+		or p.state == state_fll)
+		and not p.hld_jmp) then
+		if (inp.jump
+			and p.rejumps > 0) then
+			p.dy = jmp_vel
+			p.hld_jmp = true
+			p.rejumps -= 1
 		end
 	end
+		
 	//gravity
+	local eff_grav = grav
+	if (not p.hld_jmp) then
+		eff_grav = grav*fast_fall
+	end
 	p.dy += eff_grav * dt	
 	// clamp velocities
 	local v = sqrt(p.dx*p.dx+p.dy*p.dy)
@@ -98,7 +111,6 @@ function update_vel()
 end
 
 function update_pos()
-	// apply velocity	
 	p.x += p.dx * dt
 	p.y += p.dy * dt
 end
@@ -119,7 +131,7 @@ function collide()
 	
 	if p.y < 0 then
 		p.y = 0
-		p.dy = 0
+		//p.dy = 0
 	end
 	
 	if p.y > 127 then
@@ -131,6 +143,11 @@ end
 function change_state(new_state)
 	p.fc = 0
 	p.state = new_state
+	
+	// replenish rejumps on land
+	if (new_state == state_lnd) then
+		p.rejumps = max_rejumps
+	end
 end
 
 function update_state()
