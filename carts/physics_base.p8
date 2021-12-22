@@ -66,19 +66,8 @@ function update_inputs()
 end
 
 function can_jump()
-	return (p.state == state_idl
-		or p.state == state_wlk
-		or (p.state == state_lnd	
-			and p.fc > 2))
-		and not p.hld_jmp
- 	and p.jumps > 0
-end
-
-function can_rejump()
- return (p.state == state_jmp
- 	or p.state == state_fll)
- 	and not p.hld_jmp
- 	and p.jumps > 0
+	 return not p.hld_jmp	
+	 	and p.jumps > 0
 end
 
 function jump()
@@ -96,7 +85,7 @@ function update_vel()
 		and not inp.right) then
 		p.dx *= damp_x
 	end
-	// grounded jump
+	// jump and double jump
 	if (can_jump()		and inp.jump) then
 		jump()
 	end
@@ -105,12 +94,6 @@ function update_vel()
 		p.hld_jmp = true
 	else
 		p.hld_jmp = false
-	end
-	// rejump
-	if (can_rejump() and inp.jump) then
-			p.dy = jmp_vel
-			p.hld_jmp = true
-			p.jumps -= 1
 	end		
 	//gravity
 	local eff_grav = grav
