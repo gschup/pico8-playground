@@ -122,8 +122,8 @@ function collide()
 		//p.dy = 0
 	end
 	
-	if p.y > 127 then
-		p.y = 127
+	if p.y > 119 then
+		p.y = 119
 		p.dy = 0
 	end
 end
@@ -202,9 +202,9 @@ sprites_idl={1,2}
 frames_idl=2
 anim_speed_idl={20,40}
 // land
-sprites_lnd={7,8,9,10,2}
-frames_lnd = 5
-anim_speed_lnd={10,13,16,19,22}
+sprites_lnd={6,7,8,9,10,2}
+frames_lnd = 6
+anim_speed_lnd={3,13,16,19,22,25}
 // jump
 sprites_jmp={3,4}
 frames_jmp = 2
@@ -227,7 +227,7 @@ function draw_sprite()
 	local frames = 1
 	local anim_speed = {10}
 	local sprites = {36}
-	
+
 	if (p.state == state_wlk) then
 		frames = frames_wlk
 		anim_speed = anim_speed_wlk
@@ -258,7 +258,7 @@ function draw_sprite()
 		sprites = sprites_fll
 	end
 	
-	// find frame to play
+	// find sprite to play
 	local mod_fc = p.fc%anim_speed[frames]
 	local pos = 1
 	for k,v in pairs(anim_speed) do
