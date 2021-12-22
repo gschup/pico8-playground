@@ -57,23 +57,13 @@ end
 function update_inputs()
 	inp.left = false
 	inp.right = false
-	inp.jump = false
 	if (not (btn(⬅️) and btn(➡️))) then
-		if (btn(⬅️)) inp.left = true 
-		if (btn(➡️)) inp.right = true
+		inp.left = btn(⬅️)
+		inp.right = btn(➡️)
 	end
-	if (btn(❎)) inp.jump = true
-end
-
-function can_jump()
-	 return not p.hld_jmp	
-	 	and p.jumps > 0
-end
-
-function jump()
- p.dy = jmp_vel
- p.hld_jmp = true
- p.jumps -= 1
+	inp.jump = btn(❎)
+	// hold jump
+	p.hld_jmp = inp.jump and p.hld_jmp		
 end
 
 function update_vel()
@@ -86,15 +76,13 @@ function update_vel()
 		p.dx *= damp_x
 	end
 	// jump and double jump
-	if (can_jump()		and inp.jump) then
-		jump()
+	if (inp.jump 
+		and not p.hld_jmp	
+	 and p.jumps > 0) then
+	 p.dy = jmp_vel
+ 	p.hld_jmp = true
+ 	p.jumps -= 1
 	end
-	// hold jump
-	if (inp.jump and p.hld_jmp) then
-		p.hld_jmp = true
-	else
-		p.hld_jmp = false
-	end		
 	//gravity
 	local eff_grav = grav
 	if (not p.hld_jmp) then
@@ -158,16 +146,19 @@ function update_state()
 	if (not p.face_r and inp.right) p.face_r=true	
 	
 	// update player state
+	// dy-based changes
+	if (p.dy > 0) then
+		change_state(state_fll)
+		return
+	end
+	if (p.dy < 0) then
+		change_state(state_jmp)
+		return
+	end
 	// idle
 	if (p.state == state_idl) then
 		if (inp.left or inp.right) then
 			change_state(state_wlk)
-		end
-		if (p.dy > 0) then
-			change_state(state_fll)
-		end
-		if (p.dy < 0) then
-			change_state(state_jmp)
 		end
 		return
 	end
@@ -176,18 +167,12 @@ function update_state()
 		if (not inp.left and not inp.right) then
 				change_state(state_idl)
 		end
-		if (p.dy > 0) then
-			change_state(state_fll)
-		end
-		if (p.dy < 0) then
-			change_state(state_jmp)
-		end
 		return
 	end
 	// jump
 	if (p.state == state_jmp) then
-		if (p.dy > 0) then
-			change_state(state_fll)
+		if (p.dy == 0) then
+			change_state(state_lnd)
 		end
 		return
 	end
@@ -203,12 +188,6 @@ function update_state()
 		// go to idle after animation is done
 		if (p.fc >= anim_speed_lnd[frames_lnd]) then
 			change_state(state_idl)
-		end
-		if (p.dy > 0) then
-			change_state(state_fll)
-		end
-		if (p.dy < 0) then
-			change_state(state_jmp)
 		end
 		return
 	end	
