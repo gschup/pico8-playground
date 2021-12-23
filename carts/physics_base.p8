@@ -13,7 +13,7 @@ fast_fall = 2.0
 max_jumps = 2
 // derived constants
 grav = (2.0*jump_height)/(jump_time*jump_time)
-jmp_vel = -(2*jump_height)/jump_time
+jump_vel = -(2.0*jump_height)/jump_time
 
 // player states
 state_idl = 0
@@ -36,7 +36,7 @@ function _init()
 	p.dx = 0.0
 	p.dy = 0.0
 	// jump
-	p.hld_jmp = false
+	p.hold_jump = false
 	p.jumps = max_jumps	
 	
 	// inputs
@@ -55,15 +55,16 @@ function _update60()
 end
 
 function update_inputs()
-	inp.left = false
-	inp.right = false
-	if (not (btn(⬅️) and btn(➡️))) then
+	if (btn(⬅️) and btn(➡️)) then
+		inp.left = false
+		inp.right = false
+	else
 		inp.left = btn(⬅️)
 		inp.right = btn(➡️)
 	end
 	inp.jump = btn(❎)
 	// hold jump
-	p.hld_jmp = inp.jump and p.hld_jmp		
+	p.hold_jump = inp.jump and p.hold_jump		
 end
 
 function update_vel()
@@ -77,15 +78,16 @@ function update_vel()
 	end
 	// jump and double jump
 	if (inp.jump 
-		and not p.hld_jmp	
+		and not p.hold_jump	
 	 and p.jumps > 0) then
-	 p.dy = jmp_vel
- 	p.hld_jmp = true
+	 p.dy = jump_vel
+ 	p.hold_jump = true
  	p.jumps -= 1
+ 	sfx(0)
 	end
 	//gravity
 	local eff_grav = grav
-	if (not p.hld_jmp) then
+	if (not p.hold_jump) then
 		eff_grav = grav*fast_fall
 	end
 	p.dy += eff_grav * dt	
@@ -193,23 +195,23 @@ function update_state()
 	end	
 end
 -->8
-// walk
+// walk animation
 sprites_wlk={17,18,19,18}
 frames_wlk=4
 anim_speed_wlk={10,20,30,40}
-// idle
+// idle animation
 sprites_idl={1,2}
 frames_idl=2
 anim_speed_idl={20,40}
-// land
+// land animation
 sprites_lnd={6,7,8,9,10,2}
 frames_lnd = 6
 anim_speed_lnd={3,13,16,19,22,25}
-// jump
+// jump animation
 sprites_jmp={3,4}
 frames_jmp = 2
 anim_speed_jmp={10,20}
-// fall
+// fall animation
 sprites_fll={5}
 frames_fll = 1
 anim_speed_fll={10}
@@ -478,4 +480,5 @@ __map__
 343434313233333333333333333334320f2d2d2d2d2d2d2d2d2d0f2d2d2d2d2d000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 2123222123222121232322212222232300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __sfx__
-00010000110501405015050180501b0501e0502105024050270501505013050110501005015050160501b050220501b05020050280502c05019050200501a05015050120500d050090500605004050050500e050
+0001000006120071200b1200e1201112013130141301614017140181501a1601c1001d10022100261002710000100001000010000100001000010000100001000010000100001000110000100001000010000100
+0002000000500195501255012550115501355013550125500f5500e5500b5500b5500a5500a550155500a5500a5500d5500e55010550115501155011550115501255012550135501455000500005000050000500
