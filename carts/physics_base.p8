@@ -37,7 +37,13 @@ function _init()
 	p.dy = 0.0
 	// jump
 	p.hold_jump = false
-	p.jumps = max_jumps	
+	p.jumps = max_jumps
+	// collision
+	p.coll = {}
+	p.coll.x1 = -3
+	p.coll.y1 = -6
+	p.coll.x2 = 2
+	p.coll.y2 = 0
 	
 	// inputs
 	inp = {}
@@ -124,8 +130,8 @@ function collide()
 		//p.dy = 0
 	end
 	
-	if p.y > 119 then
-		p.y = 119
+	if p.y > 127 then
+		p.y = 127
 		p.dy = 0
 	end
 end
@@ -220,6 +226,31 @@ function _draw()
 	cls(1)
 	draw_map()	
 	draw_sprite()
+	draw_coll_rects()
+end
+
+function draw_coll_rects()
+	// sprite
+	rect(
+	p.x+p.coll.x1,
+	p.y+p.coll.y1,
+	p.x+p.coll.x2,
+	p.y+p.coll.y2,
+	8)
+	// map cells
+	local displ_x=0
+	local displ_y=16
+	for cx=displ_x,displ_x+15 do
+		for cy=displ_y,displ_y+15 do
+			// if that cell sprite has
+			// first flag set then
+			if fget(mget(cx,cy),0) then
+				local sx=(cx-displ_x)*8
+				local sy=(cy-displ_y)*8
+				rect(sx,sy,sx+7,sy+7,8)
+			end
+		end
+	end
 end
 
 function draw_sprite()
@@ -277,17 +308,17 @@ function draw_map()
 	local par_cit = 0//-0.3
 	local par_cand = 0// -0.7
 	local par_for = 0//-1.0
-	//background
+	// background
 	local city_x=p.x*par_cit
-	map(16,0,city_x+127,0,16,16)
+	map(16,0,city_x+128,0,16,16)
 	map(16,0,city_x,0,16,16)
-	//middleground
+	// middleground
 	local candy_x=p.x*par_cand
-	map(32,0,candy_x+127,0,16,16)
+	map(32,0,candy_x+128,0,16,16)
 	map(32,0,candy_x,0,16,16)
-	//foreground
+	// foreground
 	local for_x=p.x*par_for
-	map(0,16,for_x+127,0,16,16)
+	map(0,16,for_x+128,0,16,16)
 	map(0,16,for_x,0,16,16)
 end
 __gfx__
