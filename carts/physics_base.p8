@@ -4,13 +4,14 @@ __lua__
 // constants
 fps=60.0
 dt = 1.0 / fps
-damp_x = 0.1
+damp_x = 0.2
 max_vel = 8.0 * fps
 // move constants
-mov = 75.0
+mov = 7.5
+max_mov = 75
 jump_height = 24.0
 jump_time = 0.30
-fast_fall = 2.0
+fast_fall = 1.5
 max_jumps = 2
 // derived constants
 grav = (2.0*jump_height)/(jump_time*jump_time)
@@ -53,7 +54,7 @@ function _init()
 	inp.jump = false
 end
 -->8
-function _update()
+function _update60()
 	update_inputs()
 	update_vel()
 	update_pos()
@@ -75,8 +76,10 @@ end
 
 function update_vel()
 	// movement
-	if (inp.left) p.dx = -mov
-	if (inp.right) p.dx = mov
+	if (inp.left) p.dx -= mov
+	if (inp.right) p.dx += mov
+	p.dx = min(p.dx,max_mov)
+	p.dx = max(p.dx,-max_mov)
 	// slow down horizontally
 	if (not inp.left 
 		and not inp.right) then
@@ -125,26 +128,42 @@ function apply_collisions(nx,ny)
 	// one corner special cases
 	// upper left
 	if (c.ul and not c.ur and not c.bl and not c.br) then
+		local cnx=(ceil(nx/8))*8.0-p.width
+		local cny=(ceil(ny/8))*8.0-(8-p.height)
+		if abs(cnx-nx) >= abs(cny-ny) then
 			return nx,correct_down(ny)
-	end
-	// upper right
-	if (c.ur and not c.ul and not c.bl and not c.br) then
-		return nx,correct_down(ny)
-	end
-	// bottom left
-	if (c.bl and not c.ul and not c.ur and not c.br) then
-		if p.dx>=0 then
-			return nx,correct_up(ny)
 		else
 			return correct_right(nx),ny
 		end
 	end
+	// upper right
+	if (c.ur and not c.ul and not c.bl and not c.br) then
+		local cnx=(flr(nx/8))*8.0+p.width
+		local cny=(ceil(ny/8))*8.0-(8-p.height)
+		if abs(cnx-nx) >= abs(cny-ny) then
+			return nx,correct_down(ny)
+		else
+			return correct_left(nx),ny
+		end
+	end
 	// bottom right
 	if (c.br and not c.ul and not c.ur and not c.bl) then
-		if p.dx<=0 then
+		local cnx=(flr(nx/8))*8.0+p.width
+		local cny=(flr(ny/8))*8.0
+		if abs(cnx-nx) >= abs(cny-ny) then
 			return nx,correct_up(ny)
 		else
 			return correct_left(nx),ny
+		end
+	end
+	// bottom left
+	if (c.bl and not c.ul and not c.ur and not c.br) then
+		local cnx=(ceil(nx/8))*8.0-p.width
+		local cny=(flr(ny/8))*8.0
+		if abs(cnx-nx) >= abs(cny-ny) then
+			return nx,correct_up(ny)
+		else
+			return correct_right(nx),ny
 		end
 	end
 	// diagonal special cases
@@ -330,8 +349,8 @@ anim_speed_fll={10}
 
 function _draw()
 	cls(1)
-	//draw_map()	
-	draw_menu()
+	draw_map()	
+	//draw_menu()
 	draw_sprite()
 	//draw_coll_rects()
 end
