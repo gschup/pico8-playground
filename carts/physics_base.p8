@@ -4,24 +4,18 @@ __lua__
 // constants
 fps=60.0
 dt = 1.0 / fps
-damp_x = 0.1
+damp_x = 0.2
 max_vel = 8.0 * fps
 // move constants
-mov = 75.0
+mov = 7.5
+max_mov = 75
 jump_height = 24.0
 jump_time = 0.30
-fast_fall = 2.0
+fast_fall = 1.5
 max_jumps = 2
 // derived constants
 grav = (2.0*jump_height)/(jump_time*jump_time)
 jump_vel = -(2.0*jump_height)/jump_time
-
-// player states
-state_idl = 0
-state_wlk = 1
-state_jmp = 2
-state_fll = 3
-state_lnd = 4
 
 // map pos
 displ_x=0
@@ -35,7 +29,7 @@ function _init()
 	// facing direction
 	p.face_r = true
 	// state managment
-	p.state = state_idl
+	p.state = "idle"
 	p.fc = 0
 	// player position
 	p.x = 64.0
@@ -67,12 +61,8 @@ function _update60()
 	if game_state == "menu" then
 		update_menu()
 	elseif game_state == "game" then
-	update_game()
+		update_game()
 	end
-	//update_inputs()
-	//update_vel()
-	//update_pos()
-	//update_state()
 end
 
 function update_game()
@@ -97,8 +87,10 @@ end
 
 function update_vel()
 	// movement
-	if (inp.left) p.dx = -mov
-	if (inp.right) p.dx = mov
+	if (inp.left) p.dx -= mov
+	if (inp.right) p.dx += mov
+	p.dx = min(p.dx,max_mov)
+	p.dx = max(p.dx,-max_mov)
 	// slow down horizontally
 	if (not inp.left 
 		and not inp.right) then
@@ -147,26 +139,42 @@ function apply_collisions(nx,ny)
 	// one corner special cases
 	// upper left
 	if (c.ul and not c.ur and not c.bl and not c.br) then
+		local cnx=(ceil(nx/8))*8.0-p.width
+		local cny=(ceil(ny/8))*8.0-(8-p.height)
+		if abs(cnx-nx) >= abs(cny-ny) then
 			return nx,correct_down(ny)
-	end
-	// upper right
-	if (c.ur and not c.ul and not c.bl and not c.br) then
-		return nx,correct_down(ny)
-	end
-	// bottom left
-	if (c.bl and not c.ul and not c.ur and not c.br) then
-		if p.dx>=0 then
-			return nx,correct_up(ny)
 		else
 			return correct_right(nx),ny
 		end
 	end
+	// upper right
+	if (c.ur and not c.ul and not c.bl and not c.br) then
+		local cnx=(flr(nx/8))*8.0+p.width
+		local cny=(ceil(ny/8))*8.0-(8-p.height)
+		if abs(cnx-nx) >= abs(cny-ny) then
+			return nx,correct_down(ny)
+		else
+			return correct_left(nx),ny
+		end
+	end
 	// bottom right
 	if (c.br and not c.ul and not c.ur and not c.bl) then
-		if p.dx<=0 then
+		local cnx=(flr(nx/8))*8.0+p.width
+		local cny=(flr(ny/8))*8.0
+		if abs(cnx-nx) >= abs(cny-ny) then
 			return nx,correct_up(ny)
 		else
 			return correct_left(nx),ny
+		end
+	end
+	// bottom left
+	if (c.bl and not c.ul and not c.ur and not c.br) then
+		local cnx=(ceil(nx/8))*8.0-p.width
+		local cny=(flr(ny/8))*8.0
+		if abs(cnx-nx) >= abs(cny-ny) then
+			return nx,correct_up(ny)
+		else
+			return correct_right(nx),ny
 		end
 	end
 	// diagonal special cases
@@ -265,11 +273,11 @@ function change_state(new_state)
 	p.state = new_state
 	
 	// replenish rejumps on land
-	if (new_state == state_lnd) then
+	if (new_state == "land") then
 		p.jumps = max_jumps
 	end
 	
-	if (new_state == state_fll) then
+	if (new_state == "fall") then
 		p.grounded = false
 	end
 end
@@ -284,46 +292,46 @@ function update_state()
 	// update player state
 	// dy-based changes
 	if (p.dy > 0) then
-		change_state(state_fll)
+		change_state("fall")
 		return
 	end
 	if (p.dy < 0) then
-		change_state(state_jmp)
+		change_state("jump")
 		return
 	end
 	// idle
-	if (p.state == state_idl) then
+	if (p.state == "idle") then
 		if (inp.left or inp.right) then
-			change_state(state_wlk)
+			change_state("walk")
 		end
 		return
 	end
 	// walk
-	if (p.state == state_wlk) then
+	if (p.state == "walk") then
 		if (not inp.left and not inp.right) then
-				change_state(state_idl)
+				change_state("idle")
 		end
 		return
 	end
 	// jump
-	if (p.state == state_jmp) then
+	if (p.state == "jump") then
 		if (p.grounded) then
-			change_state(state_lnd)
+			change_state("land")
 		end
 		return
 	end
 	// fall
-	if (p.state == state_fll) then
+	if (p.state == "fall") then
 		if (p.grounded) then
-			change_state(state_lnd)
+			change_state("land")
 		end
 		return
 	end	
 	// land
-	if (p.state == state_lnd) then
+	if (p.state == "land") then
 		// go to idle after animation is done
 		if (p.fc >= anim_speed_lnd[frames_lnd]) then
-			change_state(state_idl)
+			change_state("idle")
 		end
 		return
 	end	
@@ -404,31 +412,31 @@ function draw_sprite()
 	local anim_speed = {10}
 	local sprites = {36}
 
-	if (p.state == state_wlk) then
+	if (p.state == "walk") then
 		frames = frames_wlk
 		anim_speed = anim_speed_wlk
 		sprites = sprites_wlk
 	end
 	
-	if (p.state == state_idl) then
+	if (p.state == "idle") then
 		frames = frames_idl
 		anim_speed = anim_speed_idl
 		sprites = sprites_idl
 	end
 	
-	if (p.state == state_lnd) then
+	if (p.state == "land") then
 		frames = frames_lnd
 		anim_speed = anim_speed_lnd
 		sprites = sprites_lnd
 	end
 	
-	if (p.state == state_jmp) then
+	if (p.state == "jump") then
 		frames = frames_jmp
 		anim_speed = anim_speed_jmp
 		sprites = sprites_jmp
 	end
 	
-	if (p.state == state_fll) then
+	if (p.state == "fall") then
 		frames = frames_fll
 		anim_speed = anim_speed_fll
 		sprites = sprites_fll
