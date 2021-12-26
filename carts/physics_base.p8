@@ -2,9 +2,10 @@ pico-8 cartridge // http://www.pico-8.com
 version 34
 __lua__
 // constants
-dt = 1.0 / 60.0
-damp_x = 0.9
-max_vel = 500.0
+fps=60.0
+dt = 1.0 / fps
+damp_x = 0.1
+max_vel = 8.0 * fps
 // move constants
 mov = 75.0
 jump_height = 24.0
@@ -22,6 +23,10 @@ state_jmp = 2
 state_fll = 3
 state_lnd = 4
 
+// map pos
+displ_x=0
+displ_y=16
+
 function _init()
 	p = {}
 	// facing direction
@@ -31,20 +36,23 @@ function _init()
 	p.fc = 0
 	// player position
 	p.x = 64.0
-	p.y = 0.0 
+	p.y = 10.0 
 	// player speed
 	p.dx = 0.0
 	p.dy = 0.0
 	// jump
+	p.grounded = false
 	p.hold_jump = false
 	p.jumps = max_jumps
 	// collision
+	// p.x,p.y is bottom middle
 	p.coll = {}
-	p.coll.x1 = -3
-	p.coll.y1 = -6
-	p.coll.x2 = 2
-	p.coll.y2 = 0
-	
+	p.coll.x1 = -3.0
+	p.coll.y1 = -6.0
+	p.coll.x2 = 2.0
+	p.coll.y2 = 0.0
+	p.width = p.coll.x2 - p.coll.x1
+	p.height = p.coll.y2 - p.coll.y1
 	// inputs
 	inp = {}
 	inp.left = false
@@ -52,11 +60,10 @@ function _init()
 	inp.jump = false
 end
 -->8
-function _update60()
+function _update()
 	update_inputs()
 	update_vel()
 	update_pos()
-	collide()
 	update_state()
 end
 
@@ -89,6 +96,7 @@ function update_vel()
 	 p.dy = jump_vel
  	p.hold_jump = true
  	p.jumps -= 1
+ 	p.grounded = false
  	sfx(0)
 	end
 	//gravity
@@ -107,32 +115,133 @@ function update_vel()
 end
 
 function update_pos()
-	p.x += p.dx * dt
-	p.y += p.dy * dt
+ // new position
+	local nx = p.x + p.dx * dt
+	local ny = p.y + p.dy * dt
+	// collision detection
+	nx,ny = apply_collisions(nx,ny)
+	// apply positions
+	p.x = nx 
+	p.y = ny
+	// tmp - screen bounds
+	collide_screen()
 end
 
-function collide()
-	// bonk with screen bounds
-	// todo: replace with 
-	// intelligent collision
+function apply_collisions(nx,ny)
+	local c = player_collide(nx,ny)
+	// one corner special cases
+	// upper left
+	if (c.ul and not c.ur and not c.bl and not c.br) then
+			return nx,correct_down(ny)
+	end
+	// upper right
+	if (c.ur and not c.ul and not c.bl and not c.br) then
+		return nx,correct_down(ny)
+	end
+	// bottom left
+	if (c.bl and not c.ul and not c.ur and not c.br) then
+		if p.dx>=0 then
+			return nx,correct_up(ny)
+		else
+			return correct_right(nx),ny
+		end
+	end
+	// bottom right
+	if (c.br and not c.ul and not c.ur and not c.bl) then
+		if p.dx<=0 then
+			return nx,correct_up(ny)
+		else
+			return correct_left(nx),ny
+		end
+	end
+	// diagonal special cases
+	// upleft + bottomright
+	// todo
+	// upright + bottomleft
+	// todo
+	// standard cases
+	// ceiling
+	if c.ul and c.ur then
+		ny=correct_down(ny)
+	end
+	// floor
+	if c.bl and c.br then
+		ny=correct_up(ny)
+	end
+	// left wall
+	if c.ul and c.bl then
+		nx=correct_right(nx)
+	end
+	if c.ur and c.br then
+		nx=correct_left(nx)
+	end
+	return nx,ny
+end
+
+function correct_up(ny)
+	p.dy=0.0
+	p.grounded=true
+	return (flr(ny/8))*8.0
+end
+
+function correct_down(ny)
+	p.dy=0.0
+	return (ceil(ny/8))*8.0-(8-p.height)
+end
+
+function correct_left(nx)
+	p.dx=0.0
+	return (flr(nx/8))*8.0+p.width
+end
+
+function correct_right(nx)
+	p.dx=0.0
+	return (ceil(nx/8))*8.0-p.width
+end
+
+function player_collide(nx, ny)
+	local cd = {}
+	// assumes the player rect is
+	// at most a map cell (8x8)
+	cd.ul = is_collide(
+		nx+p.coll.x1,
+		ny+p.coll.y1)
+	cd.ur = is_collide(
+		nx+p.coll.x2,
+		ny+p.coll.y1)
+	cd.bl = is_collide(
+		nx+p.coll.x1,
+		ny+p.coll.y2)
+	cd.br = is_collide(
+		nx+p.coll.x2,
+		ny+p.coll.y2)
+	cd.is_coll = cd.ul or cd.ur or cd.bl or cd.br
+	return cd
+end
+
+function is_collide(x,y)
+	local cx = flr(x/8) + displ_x
+	local cy = flr(y/8) + displ_y
+	return fget(mget(cx,cy),0)
+end
+
+function collide_screen()
 	if p.x < 0 then
 		p.x = 0
 		p.dx = 0
 	end
-	
 	if p.x > 127 then
 		p.x = 127
 		p.dx = 0
-	end
-	
+	end	
 	if p.y < 0 then
 		p.y = 0
-		//p.dy = 0
+		p.dy = 0
 	end
-	
 	if p.y > 127 then
 		p.y = 127
 		p.dy = 0
+		p.grounded = true
 	end
 end
 
@@ -143,6 +252,10 @@ function change_state(new_state)
 	// replenish rejumps on land
 	if (new_state == state_lnd) then
 		p.jumps = max_jumps
+	end
+	
+	if (new_state == state_fll) then
+		p.grounded = false
 	end
 end
 
@@ -179,14 +292,14 @@ function update_state()
 	end
 	// jump
 	if (p.state == state_jmp) then
-		if (p.dy == 0) then
+		if (p.grounded) then
 			change_state(state_lnd)
 		end
 		return
 	end
 	// fall
 	if (p.state == state_fll) then
-		if (p.dy == 0) then
+		if (p.grounded) then
 			change_state(state_lnd)
 		end
 		return
@@ -230,16 +343,17 @@ function _draw()
 end
 
 function draw_coll_rects()
+	local col=8
+	local coll = player_collide(p.x, p.y)
+	if (coll.is_coll) col=11
 	// sprite
 	rect(
-	p.x+p.coll.x1,
-	p.y+p.coll.y1,
-	p.x+p.coll.x2,
-	p.y+p.coll.y2,
-	8)
+		p.x+p.coll.x1,
+		p.y+p.coll.y1,
+		p.x+p.coll.x2,
+		p.y+p.coll.y2,
+		col)
 	// map cells
-	local displ_x=0
-	local displ_y=16
 	for cx=displ_x,displ_x+15 do
 		for cy=displ_y,displ_y+15 do
 			// if that cell sprite has
