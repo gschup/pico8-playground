@@ -16,13 +16,6 @@ max_jumps = 2
 grav = (2.0*jump_height)/(jump_time*jump_time)
 jump_vel = -(2.0*jump_height)/jump_time
 
-// player states
-state_idl = 0
-state_wlk = 1
-state_jmp = 2
-state_fll = 3
-state_lnd = 4
-
 // map pos
 displ_x=0
 displ_y=16
@@ -32,7 +25,7 @@ function _init()
 	// facing direction
 	p.face_r = true
 	// state managment
-	p.state = state_idl
+	p.state = "idle"
 	p.fc = 0
 	// player position
 	p.x = 64.0
@@ -250,11 +243,11 @@ function change_state(new_state)
 	p.state = new_state
 	
 	// replenish rejumps on land
-	if (new_state == state_lnd) then
+	if (new_state == "land") then
 		p.jumps = max_jumps
 	end
 	
-	if (new_state == state_fll) then
+	if (new_state == "fall") then
 		p.grounded = false
 	end
 end
@@ -269,46 +262,46 @@ function update_state()
 	// update player state
 	// dy-based changes
 	if (p.dy > 0) then
-		change_state(state_fll)
+		change_state("fall")
 		return
 	end
 	if (p.dy < 0) then
-		change_state(state_jmp)
+		change_state("jump")
 		return
 	end
 	// idle
-	if (p.state == state_idl) then
+	if (p.state == "idle") then
 		if (inp.left or inp.right) then
-			change_state(state_wlk)
+			change_state("walk")
 		end
 		return
 	end
 	// walk
-	if (p.state == state_wlk) then
+	if (p.state == "walk") then
 		if (not inp.left and not inp.right) then
-				change_state(state_idl)
+				change_state("idle")
 		end
 		return
 	end
 	// jump
-	if (p.state == state_jmp) then
+	if (p.state == "jump") then
 		if (p.grounded) then
-			change_state(state_lnd)
+			change_state("land")
 		end
 		return
 	end
 	// fall
-	if (p.state == state_fll) then
+	if (p.state == "fall") then
 		if (p.grounded) then
-			change_state(state_lnd)
+			change_state("land")
 		end
 		return
 	end	
 	// land
-	if (p.state == state_lnd) then
+	if (p.state == "land") then
 		// go to idle after animation is done
 		if (p.fc >= anim_speed_lnd[frames_lnd]) then
-			change_state(state_idl)
+			change_state("idle")
 		end
 		return
 	end	
@@ -339,7 +332,7 @@ function _draw()
 	cls(1)
 	draw_map()	
 	draw_sprite()
-	draw_coll_rects()
+	//draw_coll_rects()
 end
 
 function draw_coll_rects()
@@ -375,31 +368,31 @@ function draw_sprite()
 	local anim_speed = {10}
 	local sprites = {36}
 
-	if (p.state == state_wlk) then
+	if (p.state == "walk") then
 		frames = frames_wlk
 		anim_speed = anim_speed_wlk
 		sprites = sprites_wlk
 	end
 	
-	if (p.state == state_idl) then
+	if (p.state == "idle") then
 		frames = frames_idl
 		anim_speed = anim_speed_idl
 		sprites = sprites_idl
 	end
 	
-	if (p.state == state_lnd) then
+	if (p.state == "land") then
 		frames = frames_lnd
 		anim_speed = anim_speed_lnd
 		sprites = sprites_lnd
 	end
 	
-	if (p.state == state_jmp) then
+	if (p.state == "jump") then
 		frames = frames_jmp
 		anim_speed = anim_speed_jmp
 		sprites = sprites_jmp
 	end
 	
-	if (p.state == state_fll) then
+	if (p.state == "fall") then
 		frames = frames_fll
 		anim_speed = anim_speed_fll
 		sprites = sprites_fll
