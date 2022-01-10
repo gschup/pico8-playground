@@ -5,11 +5,11 @@ __lua__
 // constants
 fps=60.0
 dt = 1.0 / fps
-damp_x = 0.2
-max_vel = 6 * fps
+damp_x = 0.7
+max_vel = 8.0 * fps
 // move constants
 mov = 7.5
-max_mov = 75
+max_mov = 75.0
 jump_height = 24.0
 jump_time = 0.30
 fast_fall = 1.5
@@ -22,7 +22,7 @@ jump_vel = -(2.0*jump_height)/jump_time
 displ_x=0
 displ_y=16
 
-//game state
+// game state
 game_state = "menu"
 
 function _init()
