@@ -1,11 +1,12 @@
 pico-8 cartridge // http://www.pico-8.com
 version 34
 __lua__
+--init
 // constants
 fps=60.0
 dt = 1.0 / fps
 damp_x = 0.2
-max_vel = 8.0 * fps
+max_vel = 6 * fps
 // move constants
 mov = 7.5
 max_mov = 75
@@ -37,8 +38,12 @@ function _init()
 	// player speed
 	p.dx = 0.0
 	p.dy = 0.0
+	// move remainder
+	p.rx = 0.0
+	p.ry = 0.0
 	// jump
 	p.grounded = false
+	p.falling = true
 	p.hold_jump = false
 	p.jumps = max_jumps
 	// collision
@@ -57,6 +62,7 @@ function _init()
 	inp.jump = false
 end
 -->8
+--update
 function _update60()
 	if game_state == "menu" then
 		update_menu()
@@ -122,150 +128,86 @@ function update_vel()
 end
 
 function update_pos()
- // new position
-	local nx = p.x + p.dx * dt
-	local ny = p.y + p.dy * dt
-	// collision detection
-	nx,ny = apply_collisions(nx,ny)
-	// apply positions
-	p.x = nx 
-	p.y = ny
-	// tmp - screen bounds
-	collide_screen()
+	// move player according to velocities
+	move_x(p.dx * dt)
+	move_y(p.dy * dt)
 end
 
-function apply_collisions(nx,ny)
-	local c = player_collide(nx,ny)
-	// one corner special cases
-	// upper left
-	if (c.ul and not c.ur and not c.bl and not c.br) then
-		local cnx=(ceil(nx/8))*8.0-p.width
-		local cny=(ceil(ny/8))*8.0-(8-p.height)
-		if abs(cnx-nx) >= abs(cny-ny) then
-			return nx,correct_down(ny)
+function move_x(mx)
+	mx+=p.rx
+	local dir=sgn(mx)
+	while abs(mx) > 1.0 do
+		mx-=dir
+		if player_collide(p.x+dir,p.y) then
+			// horizontal collision
+			p.dx=0.0
+			p.rx=0.0
+			return
 		else
-			return correct_right(nx),ny
+		// no collision - move
+			p.x+=dir
 		end
 	end
-	// upper right
-	if (c.ur and not c.ul and not c.bl and not c.br) then
-		local cnx=(flr(nx/8))*8.0+p.width
-		local cny=(ceil(ny/8))*8.0-(8-p.height)
-		if abs(cnx-nx) >= abs(cny-ny) then
-			return nx,correct_down(ny)
+	// got here without collision
+	// save remainder
+	p.rx = mx
+end
+
+function move_y(my)
+	my+=p.ry
+	local dir=sgn(my)
+	while abs(my) > 1.0 do
+		my-=dir
+		if player_collide(p.x,p.y+dir) then
+			// vertical collision
+			p.dy=0.0
+			p.ry=0.0
+			if dir>0 then
+				p.falling = false
+				p.grounded = true
+			end
+			return
 		else
-			return correct_left(nx),ny
+			// no collision - move
+			p.y+=dir
+			// moved down - falling
+			if dir>0 then
+				p.falling = true
+				p.grounded = false
+			end
 		end
 	end
-	// bottom right
-	if (c.br and not c.ul and not c.ur and not c.bl) then
-		local cnx=(flr(nx/8))*8.0+p.width
-		local cny=(flr(ny/8))*8.0
-		if abs(cnx-nx) >= abs(cny-ny) then
-			return nx,correct_up(ny)
-		else
-			return correct_left(nx),ny
-		end
-	end
-	// bottom left
-	if (c.bl and not c.ul and not c.ur and not c.br) then
-		local cnx=(ceil(nx/8))*8.0-p.width
-		local cny=(flr(ny/8))*8.0
-		if abs(cnx-nx) >= abs(cny-ny) then
-			return nx,correct_up(ny)
-		else
-			return correct_right(nx),ny
-		end
-	end
-	// diagonal special cases
-	// upleft + bottomright
-	// todo
-	// upright + bottomleft
-	// todo
-	// standard cases
-	// ceiling
-	if c.ul and c.ur then
-		ny=correct_down(ny)
-	end
-	// floor
-	if c.bl and c.br then
-		ny=correct_up(ny)
-	end
-	// left wall
-	if c.ul and c.bl then
-		nx=correct_right(nx)
-	end
-	if c.ur and c.br then
-		nx=correct_left(nx)
-	end
-	return nx,ny
+	// got here without collision
+	// save remainder
+	p.ry = my
 end
 
-function correct_up(ny)
-	p.dy=0.0
-	p.grounded=true
-	return (flr(ny/8))*8.0
-end
-
-function correct_down(ny)
-	p.dy=0.0
-	return (ceil(ny/8))*8.0-(8-p.height)
-end
-
-function correct_left(nx)
-	p.dx=0.0
-	return (flr(nx/8))*8.0+p.width
-end
-
-function correct_right(nx)
-	p.dx=0.0
-	return (ceil(nx/8))*8.0-p.width
-end
-
-function player_collide(nx, ny)
-	local cd = {}
+function player_collide(nx,ny)
 	// assumes the player rect is
 	// at most a map cell (8x8)
-	cd.ul = is_collide(
+	local ul = is_collide(
 		nx+p.coll.x1,
 		ny+p.coll.y1)
-	cd.ur = is_collide(
+	local ur = is_collide(
 		nx+p.coll.x2,
 		ny+p.coll.y1)
-	cd.bl = is_collide(
+	local bl = is_collide(
 		nx+p.coll.x1,
 		ny+p.coll.y2)
-	cd.br = is_collide(
+	local br = is_collide(
 		nx+p.coll.x2,
 		ny+p.coll.y2)
-	cd.is_coll = cd.ul or cd.ur or cd.bl or cd.br
-	return cd
+	return ul or ur or bl or br
 end
 
 function is_collide(x,y)
+	// screen bounds
+	if (x<0 or x>127) return true
+	if (y<0 or y>127) return true
+	// collision by map
 	local cx = flr(x/8) + displ_x
 	local cy = flr(y/8) + displ_y
 	return fget(mget(cx,cy),0)
-end
-
-function collide_screen()
-	if p.x < 0 then
-		p.x = 0
-		p.dx = 0
-	end
-	if p.x > 127 then
-		p.x = 127
-		p.dx = 0
-	end	
-	if p.y < 0 then
-		p.y = 0
-		p.dy = 0
-	end
-	if p.y > 127 then
-		p.y = 127
-		p.dy = 0
-		p.grounded = true
-	end
 end
 
 function change_state(new_state)
@@ -291,7 +233,7 @@ function update_state()
 	
 	// update player state
 	// dy-based changes
-	if (p.dy > 0) then
+	if (p.falling) then
 		change_state("fall")
 		return
 	end
@@ -343,6 +285,7 @@ function update_menu()
 	end
 end
 -->8
+--draw
 // walk animation
 sprites_wlk={17,18,19,18}
 frames_wlk=4
@@ -381,8 +324,7 @@ end
 
 function draw_coll_rects()
 	local col=8
-	local coll = player_collide(p.x, p.y)
-	if (coll.is_coll) col=11
+	if (player_collide(p.x, p.y)) col=11
 	// sprite
 	rect(
 		p.x+p.coll.x1,
