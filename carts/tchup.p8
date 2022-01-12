@@ -17,17 +17,20 @@ max_jumps = 2
 // derived constants
 grav = (2.0*jump_height)/(jump_time*jump_time)
 jump_vel = -(2.0*jump_height)/jump_time
-
 // map pos
-displ_x=0
-displ_y=16
-
-// game state
-game_state = "menu"
-frames_in_menu = 0
-frames_in_game = 0
+map_x1=0
+map_x2=32
+map_y1=16
+map_y2=32
+map_size_x=8*(map_x2-map_x1)
+map_size_y=8*(map_y2-map_y1)
 
 function _init()
+	// game state
+	game_state = "menu"
+	frames_in_menu = 0
+	frames_in_game = 0
+	// player
 	p = {}
 	// facing direction
 	p.face_r = true
@@ -62,6 +65,10 @@ function _init()
 	inp.left = false
 	inp.right = false
 	inp.jump = false
+	// camera
+	cam = {}
+	cam.x = 0
+	cam.y = 0
 	// animated tiles
 	find_tiles()
 end
@@ -70,6 +77,7 @@ end
 candle_tiles_x={}
 candle_tiles_y={}
 candle_count=0
+
 function find_tiles()
 	for x=0,31 do
 		for y=15,31 do
@@ -91,12 +99,19 @@ function _update60()
 	end
 end
 
+function update_menu()
+	frames_in_menu +=1
+	if btnp(❎) then
+		game_state = "game"
+	end
+end
+
 function update_game()
+ frames_in_game+=1
 	update_inputs()
 	update_vel()
 	update_pos()
 	update_state()
-	frames_in_game+=1
 end
 
 function update_inputs()
@@ -223,11 +238,11 @@ end
 
 function is_collide(x,y)
 	// screen bounds
-	if (x<0 or x>127) return true
-	if (y<0 or y>127) return true
+	if (x<0 or x>(map_x2-map_x1)*8) return true
+	if (y<0 or y>(map_y2-map_y1)*8) return true
 	// collision by map
-	local cx = flr(x/8) + displ_x
-	local cy = flr(y/8) + displ_y
+	local cx = flr(x/8) + map_x1
+	local cy = flr(y/8) + map_y1
 	return fget(mget(cx,cy),0)
 end
 
@@ -299,15 +314,9 @@ function update_state()
 		return
 	end	
 end
-
-function update_menu()
-	if btnp(❎) then
-		game_state = "game"
-	end
-	frames_in_menu +=1
-end
 -->8
 --draw
+// animation data
 // walk animation
 sprites_wlk={17,18,19,18}
 frames_wlk=4
@@ -328,8 +337,6 @@ anim_speed_jmp={10,20}
 sprites_fll={5}
 frames_fll = 1
 anim_speed_fll={10}
-//roll_animation
-sprites_roll={13,76}
 
 function _draw()
 	if game_state == "menu" then
@@ -341,9 +348,27 @@ end
 	
 function draw_game()
 	cls(1)
+	update_cam_pos()
 	draw_map()	
 	draw_sprite()
 	//draw_coll_rects()
+end
+
+function update_cam_pos()
+	local cam_barr_x=12
+	local cam_barr_y=32
+ // camera never exceeds a max
+ // distance to the player
+ cam.x=max(cam.x,-p.x+64-cam_barr_x)
+ cam.x=min(cam.x,-p.x+64+cam_barr_x)
+ cam.y=max(cam.y,-p.y+64-cam_barr_y)
+ cam.y=min(cam.y,-p.y+64+cam_barr_y)
+	
+	// clamp camera to map bounds
+	cam.x=min(cam.x,0)
+	cam.y=min(cam.y,0)
+	cam.x=max(cam.x,-map_size_x+128)
+	cam.y=max(cam.y,-map_size_y+128)
 end
 
 function draw_coll_rects()
@@ -351,19 +376,19 @@ function draw_coll_rects()
 	if (player_collide(p.x, p.y)) col=11
 	// sprite
 	rect(
-		p.x+p.coll.x1,
-		p.y+p.coll.y1,
-		p.x+p.coll.x2,
-		p.y+p.coll.y2,
+		cam.x+p.x+p.coll.x1,
+		cam.y+p.y+p.coll.y1,
+		cam.x+p.x+p.coll.x2,
+		cam.y+p.y+p.coll.y2,
 		col)
 	// map cells
-	for cx=displ_x,displ_x+15 do
-		for cy=displ_y,displ_y+15 do
+	for cx=map_x1,map_x2 do
+		for cy=map_y1,map_y2 do
 			// if that cell sprite has
 			// first flag set then
 			if fget(mget(cx,cy),0) then
-				local sx=(cx-displ_x)*8
-				local sy=(cy-displ_y)*8
+				local sx=cam.x+(cx-map_x1)*8
+				local sy=cam.y+(cy-map_y1)*8
 				rect(sx,sy,sx+7,sy+7,8)
 			end
 		end
@@ -372,8 +397,8 @@ end
 
 function draw_sprite()
 	local spr_n = 36
-	local spr_x = flr(p.x)-4
-	local spr_y = flr(p.y)-7
+	local spr_x = cam.x+p.x-4
+	local spr_y = cam.y+p.y-7
 	local frames = 1
 	local anim_speed = {10}
 	local sprites = {36}
@@ -422,29 +447,23 @@ function draw_sprite()
 end
 
 function draw_map()
-	local par_cit = 0//-0.3
-	local par_cand = 0// -0.7
-	local par_for = 0//-1.0
 	// background
-	local city_x=p.x*par_cit
-	map(16,0,city_x+128,0,16,16)
-	map(16,0,city_x,0,16,16)
-	// middleground
-	local candy_x=p.x*par_cand
-	//map(32,0,candy_x+128,0,16,16)
-	//map(32,0,candy_x,0,16,16)
+	local back_par=0.3
+	local back_x=back_par*cam.x%128
+	local back_y=back_par*cam.y%128
+	map(16,0,back_x,back_y,16,16)
+	map(16,0,back_x-128,back_y,16,16)
+	map(16,0,back_x,back_y-128,16,16)
+	map(16,0,back_x-128,back_y-128,16,16)
 	// foreground
-	local for_x=p.x*par_for
-	map(0,16,for_x+128,0,16,16)
-	map(0,16,for_x,0,16,16)
+	map(map_x1,map_y1,cam.x,cam.y,map_size_x,map_size_y)
 	// draw animated tiles
 	for x=1,candle_count do
-		local candle=80+(frames_in_game/15)%3
-		spr(candle,8*candle_tiles_x[x],
-						8*(candle_tiles_y[x]-displ_y))
+		local candle_spr=80+(frames_in_game/15)%3
+		spr(candle_spr,
+						cam.x+8*(candle_tiles_x[x]-map_x1),
+						cam.y+8*(candle_tiles_y[x]-map_y1))
 	end
-		
-
 end
 
 function draw_menu()
@@ -459,9 +478,6 @@ function draw_menu()
 	// small candle animation	
 	local candle=80+(frames_in_menu/15)%3
 	spr(candle,16,88)
-	//local counter = flr(frames_in_menu/20)
-	//local roll=sprites_roll[(counter%2)+1]
-	//spr(roll,104,88,2,2)
 	// big candle sprite
 	spr(67,45,74,4,4)
 	// tchuptchup animation
@@ -663,7 +679,7 @@ __label__
 88888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888888
 
 __gff__
-0000000000000000000000010102020000000000000000010100000101020200000000000000000000000000000000000001010101010101010101010101000002040000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+0000000000000000000000010102020100000000000001010100000101020200000000000001010000000000000000000001010101010101010101010101000002040000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 __map__
 000000000000000000000000000000002b2a2a2a2d2a2a2a2b2a2a2a2a2a002d000000000000000000000000000000001818181818181818181818181818181800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
