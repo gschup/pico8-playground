@@ -30,6 +30,7 @@ function _init()
 	game_state = "menu"
 	frames_in_menu = 0
 	frames_in_game = 0
+	frames_in_win = 0
 	// player
 	p = {}
 	// facing direction
@@ -116,6 +117,18 @@ function _update60()
 		update_menu()
 	elseif game_state == "game" then
 		update_game()
+	elseif game_state == "win" then
+		update_win()
+	end
+end
+
+function update_win()
+	frames_in_win +=1
+	if btnp(❎) then
+		_init()
+		for i=1,candle_count do
+			candles_activated[i] = false
+		end
 	end
 end
 
