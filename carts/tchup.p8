@@ -5,7 +5,8 @@ __lua__
 // constants
 fps=60.0
 dt = 1.0 / fps
-damp_x = 0.7
+damp_x = 0.5
+air_damp_x = 0.97
 max_vel = 8.0 * fps
 // move constants
 mov = 7.5
@@ -13,6 +14,7 @@ max_mov = 75.0
 jump_height = 24.0
 jump_time = 0.30
 fast_fall = 1.5
+cling_speed = 6.0
 
 // derived constants
 grav = (2.0*jump_height)/(jump_time*jump_time)
@@ -64,6 +66,8 @@ function _init()
 	p.falling = true
 	p.hold_jump = false
 	p.jumps = max_jumps
+	p.has_walljump = true
+	p.cling_right = false
 	// collision
 	// p.x,p.y is bottom middle
 	p.coll = {}
@@ -225,24 +229,42 @@ function update_vel()
 	// slow down horizontally
 	if (not inp.left 
 		and not inp.right) then
-		p.dx *= damp_x
-	end
-	// jump and double jump
-	if (inp.jump 
-		and not p.hold_jump	
-	 and p.jumps > 0) then
-	 p.dy = jump_vel
- 	p.hold_jump = true
- 	p.jumps -= 1
- 	p.grounded = false
- 	sfx(0)
+		if p.grounded then
+			p.dx *= damp_x
+		else
+			p.dx *= air_damp_x
+		end
 	end
 	//gravity
 	local eff_grav = grav
 	if (not p.hold_jump) then
 		eff_grav = grav*fast_fall
 	end
-	p.dy += eff_grav * dt	
+	p.dy += eff_grav * dt
+	if p.state=="cling" then
+		p.dy = cling_speed
+	end	
+	// jump and double jump
+	if (inp.jump 
+		and not p.hold_jump	
+	 and (p.jumps > 0 
+	 	or p.state == "cling")) then
+	 p.dy = jump_vel
+ 	p.hold_jump = true
+ 	p.grounded = false
+ 	sfx(0)
+ 	if p.state == "cling" then
+ 		if p.cling_right then
+ 			p.x-=1
+ 			p.dx = -200
+ 		else
+ 			p.x+=1
+ 			p.dx = 200
+ 		end
+ 	else
+ 		p.jumps -= 1
+ 	end
+	end
 	// clamp velocities
 	local v = sqrt(p.dx*p.dx+p.dy*p.dy)
 	if (v > max_vel) then
@@ -259,8 +281,9 @@ end
 
 function update_pos()
 	// move player according to velocities
-	move_x(p.dx * dt)
 	move_y(p.dy * dt)
+	move_x(p.dx * dt)
+	
 end
 
 function move_x(mx)
@@ -270,6 +293,10 @@ function move_x(mx)
 		mx-=dir
 		if player_collide(p.x+dir,p.y) then
 			// horizontal collision
+			if not p.grounded then
+				p.state="cling"
+				p.cling_right=p.dx>0
+			end
 			p.dx=0.0
 			p.rx=0.0
 			return
@@ -345,7 +372,9 @@ function change_state(new_state)
 	p.state = new_state
 	
 	// replenish rejumps on land
-	if (new_state == "land") then
+	if (new_state == "land" or
+		new_state == "walk" or
+		new_state == "idle") then
 		p.jumps = max_jumps
 	end
 	
@@ -366,7 +395,7 @@ function update_state()
 	
 	// update player state
 	// dy-based changes
-	if (p.falling) then
+	if (p.falling and not p.state == "cling") then
 		change_state("fall")
 		return
 	end
@@ -407,6 +436,28 @@ function update_state()
 		// go to idle after animation is done
 		if (p.fc >= anim_speed_lnd[frames_lnd]) then
 			change_state("idle")
+		end
+		return
+	end
+	// cling
+	if p.state == "cling" then
+		// lose cling if wall is no longer there
+		if p.cling_right and not is_collide(p.x+p.coll.x2+1,p.y-p.height/2) then
+				change_state("fall")
+		end
+		if not p.cling_right and not is_collide(p.x+p.coll.x1-1,p.y-p.height/2) then
+				change_state("fall")
+		end
+		// lose cling if player moves from wall
+		if p.dx >= 0 and not p.cling_right then
+			change_state("fall")
+		end
+		if p.dx =< 0 and p.cling_right then
+			change_state("fall")
+		end
+		// lose cling if land
+		if (p.grounded) then
+			change_state("land")
 		end
 		return
 	end	
@@ -531,6 +582,10 @@ anim_speed_fll={10}
 sprites_dd={26}
 frames_dd = 1
 anim_speed_dd={10}
+// cling animation
+sprites_clng={20,21}
+frames_clng = 2
+anim_speed_clng={5,10}
 
 function _draw()
 	if game_state == "menu" then
@@ -636,6 +691,12 @@ function draw_sprite()
 		frames = frames_fll
 		anim_speed = anim_speed_fll
 		sprites = sprites_fll
+	end
+	
+		if (p.state == "cling") then
+		frames = frames_clng
+		anim_speed = anim_speed_clng
+		sprites = sprites_clng
 	end
 	
 	if (p.state == "dead") then
