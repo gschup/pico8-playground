@@ -449,10 +449,10 @@ function update_state()
 				change_state("fall")
 		end
 		// lose cling if player moves from wall
-		if p.dx >= 0 and not p.cling_right then
+		if not inp.left and not p.cling_right then
 			change_state("fall")
 		end
-		if p.dx =< 0 and p.cling_right then
+		if not inp.right and p.cling_right then
 			change_state("fall")
 		end
 		// lose cling if land
