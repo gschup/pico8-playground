@@ -40,6 +40,7 @@ function _init()
 	frames_in_game = 0
 	frames_in_win = 0
 	frames_in_dead = 0
+	// dialog state
 	is_textbox = false
 	// player
 	p = {}
@@ -72,6 +73,12 @@ function _init()
 	p.coll.y2 = 0.0
 	p.width = p.coll.x2 - p.coll.x1
 	p.height = p.coll.y2 - p.coll.y1
+	// kill box
+	p.kill = {}
+	p.kill.x1 = -3.0
+	p.kill.y1 = -6.0
+	p.kill.x2 = 2.0
+	p.kill.y2 = -2.0
 	// inputs
 	inp = {}
 	inp.left = false
@@ -82,27 +89,26 @@ function _init()
 	cam.x = 0
 	cam.y = 0
 	// animated tiles
+	candle_tiles_x={}
+	candle_tiles_y={}
+	candles_activated={}
+	candle_count=0
+	
+	soda_tiles_x={}
+	soda_tiles_y={}
+	soda_count=0
+	
+	deep_soda_tiles_x={}
+	deep_soda_tiles_y={}
+	deep_soda_count=0
+	
+	roll_tiles_x={}
+	roll_tiles_y={}
+roll_count=0
 	find_animated_tiles()
 end
 
 // find animated tiles
-candle_tiles_x={}
-candle_tiles_y={}
-candles_activated={}
-candle_count=0
-
-soda_tiles_x={}
-soda_tiles_y={}
-soda_count=0
-
-deep_soda_tiles_x={}
-deep_soda_tiles_y={}
-deep_soda_count=0
-
-roll_tiles_x={}
-roll_tiles_y={}
-roll_count=0
-
 function find_animated_tiles()
 	for x=map_x1,map_x2 do
 		for y=map_y1,map_y2 do
@@ -148,9 +154,6 @@ function update_win()
 	frames_in_win +=1
 	if btnp(❎) then
 		_init()
-		for i=1,candle_count do
-			candles_activated[i] = false
-		end
 	end
 end
 
@@ -159,6 +162,12 @@ function update_dead()
 	if btnp(❎) then
 		_init()
 	end
+	inp.left = false
+	inp.right = false
+	inp.jump = false
+	update_vel()
+	update_pos()
+	update_state()
 end
 
 function update_menu()
@@ -177,10 +186,11 @@ function update_game()
 	update_vel()
 	update_pos()
 	update_state()
-	// candle touching
+	// check collision
 	check_candle_touch()
 	check_roll_touch()
 	// check game end
+	check_kill()
 	check_game_end()
 end
 
@@ -347,6 +357,9 @@ end
 function update_state()
 	// update frame count
 	p.fc += 1
+	if p.state == "dead" then
+		return
+	end
 	// update facing direction
 	if (p.face_r and inp.left) p.face_r=false
 	if (not p.face_r and inp.right) p.face_r=true	
@@ -417,6 +430,39 @@ function check_candle_touch()
 	end
 end
 
+function is_kill(x,y)
+	// collision by map
+	local cx = flr(x/8) + map_x1
+	local cy = flr(y/8) + map_y1
+	return fget(mget(cx,cy),2)
+end
+
+function player_kill(nx,ny)
+	// assumes the player rect is
+	// at most a map cell (8x8)
+	local ul = is_kill(
+		nx+p.kill.x1,
+		ny+p.kill.y1)
+	local ur = is_kill(
+		nx+p.kill.x2,
+		ny+p.kill.y1)
+	local bl = is_kill(
+		nx+p.kill.x1,
+		ny+p.kill.y2)
+	local br = is_kill(
+		nx+p.kill.x2,
+		ny+p.kill.y2)
+	return ul or ur or bl or br
+end
+
+function check_kill()
+	if player_kill(p.x,p.y) then
+			game_state="dead"
+			p.dy=jump_vel
+			p.state="dead"
+		end
+end
+
 // roll touching
 function check_roll_touch()
 	// check collision
@@ -425,7 +471,6 @@ function check_roll_touch()
 		local cy=8*(roll_tiles_y[i]-map_y1)+4
 		if player_touches(cx,cy,10) and btnp(🅾️)then
 			// check which text needs to be loaded
-			printh(i)
 			if is_textbox then
 				is_textbox = false
 			else
@@ -482,6 +527,10 @@ anim_speed_jmp={10,20}
 sprites_fll={5}
 frames_fll = 1
 anim_speed_fll={10}
+// dead animation
+sprites_dd={26}
+frames_dd = 1
+anim_speed_dd={10}
 
 function _draw()
 	if game_state == "menu" then
@@ -491,7 +540,11 @@ function _draw()
 	elseif game_state == "win" then
 		draw_win_screen()
 	elseif game_state == "dead" then
-		draw_dead_screen()
+		if frames_in_dead>30 then
+			draw_dead_screen()
+		else
+			draw_game()
+		end
 	end
 end
 	
@@ -583,6 +636,12 @@ function draw_sprite()
 		frames = frames_fll
 		anim_speed = anim_speed_fll
 		sprites = sprites_fll
+	end
+	
+	if (p.state == "dead") then
+		frames = frames_dd
+		anim_speed = anim_speed_dd
+		sprites = sprites_dd
 	end
 	
 	// find sprite to play
@@ -684,7 +743,7 @@ function draw_win_screen()
 	local tchup=1+(frames_in_win/25)%2
 	spr(tchup,60,48)
 	// text
-	print('congratulations! you won!',18,1,7)
+	print('congratulations!',35,1,7)
 end
 
 function draw_dead_screen()
@@ -717,12 +776,12 @@ __gfx__
 000000000440044004400440000000000000000000000000000000000999999049999994049999400440044067774fff4ffffff6727e2ee222ee2e72ddddddf7
 0000000000000000000000000000000000009aa000009aa0dddddddd777777777777777700000000000000006774fffffff4ffff72ee2e2eee2e2e7277777777
 0000000000aaaa000000000000aaaa00000975a8000977a8dddddddd777777777777777700000000000000006774ff4ffffff4ff72ee2e2eee2e2ee277777777
-000000000975a75000aaaa000975a7500009778800097588dddddddd777777777777777700000000000000006774ffffffffffff72ee2ee222ee2ee277777777
-0000000009aa88a00975a75009aa88a00009aa880009aa88dddddddd777777777777777700000000000000006774ffffff4fffff72eee2eeeee2eee277777777
-0000000009aaaaa009aa88a009aaaaa00009aaa80009aaa8dddddddd7777777777777777000000000000000067774fff4fff4ff60e2eee22222eee2e77777777
-00000000099aaa40099aaaa00994aaa000009aa400009aa0dddddddd7777777777777777000000000000000067774ffffffffff600e2eeeeeeeee2e077777777
-000000000099940009999aa0004999000000499400044994fdddddddffffffff7777777700000000000000000666644fffff4460000e22eeeee22e0077777777
-0000000000440000004404400000044000040000000000047fdddddd1111111177777777000000020000000005555554444455500000ee22222ee000ffffffff
+000000000975a75000aaaa000975a7500009778800097588dddddddd777777777777777700000000077707776774ffffffffffff72ee2ee222ee2ee277777777
+0000000009aa88a00975a75009aa88a00009aa880009aa88dddddddd7777777777777777000000000757a7576774ffffff4fffff72eee2eeeee2eee277777777
+0000000009aaaaa009aa88a009aaaaa00009aaa80009aaa8dddddddd7777777777777777000000000777a77767774fff4fff4ff60e2eee22222eee2e77777777
+00000000099aaa40099aaaa00994aaa000009aa400009aa0dddddddd7777777777777777000000000aaa88a067774ffffffffff600e2eeeeeeeee2e077777777
+000000000099940009999aa0004999000000499400044994fdddddddffffffff777777770000000004aa8a400666644fffff4460000e22eeeee22e0077777777
+0000000000440000004404400000044000040000000000047fdddddd1111111177777777000000020499994005555554444455500000ee22222ee000ffffffff
 00000000dddddddddddddddddddddddd88888888ddddddf77fdddddd77777777777777777777777700000000000000000000000000000000f77777777777777f
 00000000dddddddddddddddddddddddd88888888dddddddffddddddd777777777777777777777777005d5d0000cdcd0000d6d60000565600ff777777777777ff
 00000000dddddddddddddddddddddddd88888888dddddddddddddddd77777777777777777777777705d5d5d00cdcdcd00d6d6d60056565600ff7777777777ff0
