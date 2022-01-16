@@ -14,11 +14,14 @@ max_mov = 75.0
 jump_height = 22.0
 jump_time = 0.30
 fast_fall = 1.5
-cling_speed = 6.0
+cling_speed = 7.0
+walljump_velx = 200
+max_coyote = 10
 
 // derived constants
 grav = (2.0*jump_height)/(jump_time*jump_time)
 jump_vel = -(2.0*jump_height)/jump_time
+
 // map pos
 map_x1=0
 map_x2=80
@@ -34,6 +37,8 @@ dialog = {
 {"do a wall jump to reach","higher places! thats all","advice i can give you!"}
 }
 current_text = "debug"
+// no.of frames before death screen
+dead_anim_frames=30
 
 function _init()
 music(0)
@@ -62,12 +67,14 @@ music(0)
 	p.rx = 0.0
 	p.ry = 0.0
 	// jump
-	max_jumps = 1
+	max_jumps = 0
 	p.grounded = false
 	p.falling = true
 	p.hold_jump = false
-	p.jumps = max_jumps
-	p.has_walljump = true
+	p.jumps = 0
+	p.coyote = 0
+	p.wall_coyote = 0
+	p.has_walljump = false
 	p.cling_right = false
 	// collision
 	// p.x,p.y is bottom middle
@@ -118,8 +125,8 @@ music(0)
 	splurting_soda_tiles_x={}
 	splurting_soda_tiles_y={}
 	splurting_soda_count=0
-
 	
+ // fill the tables
 	find_animated_tiles()
 end
 
@@ -127,32 +134,38 @@ end
 function find_animated_tiles()
 	for x=map_x1,map_x2 do
 		for y=map_y1,map_y2 do
+			// find candles
 			if mget(x,y)==65 then
 				add(candle_tiles_x,x)
 				add(candle_tiles_y,y)
 				add(candles_activated,false)
 				candle_count+=1
 			end
+			// find soda top
 			if mget(x,y)==127 then
 					add(soda_tiles_x,x)
 					add(soda_tiles_y,y)
 					soda_count +=1
 			end
+			// find deep soda
 			if mget(x,y)==111 then
 				add(deep_soda_tiles_x,x)
 				add(deep_soda_tiles_y,y)
 				deep_soda_count +=1
 			end
+			// find talking rolls
 			if mget(x,y)==25 then
 				add(roll_tiles_x,x)
 				add(roll_tiles_y,y)
 				roll_count +=1
 			end
+			// find falling soda
 			if mget(x,y)==240 then
 				add(falling_soda_tiles_x,x)
 				add(falling_soda_tiles_y,y)
 				falling_soda_count +=1
 			end
+			// find splurting soda
 			if mget(x,y)==243 then
 				add(splurting_soda_tiles_x,x)
 				add(splurting_soda_tiles_y,y)
@@ -188,12 +201,16 @@ function update_dead()
 	if btnp(❎) then
 		_init()
 	end
+	// no inputs 
 	inp.left = false
 	inp.right = false
 	inp.jump = false
-	update_vel()
-	update_pos()
-	update_state()
+	// animate some steps
+	if frames_in_dead<=dead_anim_frames then 
+		update_vel()
+		update_pos()
+		update_state()
+	end
 end
 
 function update_menu()
@@ -231,10 +248,8 @@ function update_inputs()
 	inp.jump = btn(❎)
 	// hold jump
 	p.hold_jump = inp.jump and p.hold_jump		
-	// dialog state
+	// no inputs in dialog
 	if is_textbox then
-		inp.left = false
-		inp.right = false
 		inp.left = false
 		inp.right = false
 		inp.jump = false
@@ -243,7 +258,13 @@ function update_inputs()
 end
 
 function update_vel()
-	// movement
+	// freeze player if in dialog
+	if is_textbox then
+		p.dx = 0
+		p.dy = 0
+		return
+	end
+	// horizontal movement
 	if (inp.left) p.dx -= mov
 	if (inp.right) p.dx += mov
 	p.dx = min(p.dx,max_mov)
@@ -257,35 +278,33 @@ function update_vel()
 			p.dx *= air_damp_x
 		end
 	end
-	//gravity
+	// determine gravity
 	local eff_grav = grav
 	if (not p.hold_jump) then
 		eff_grav = grav*fast_fall
 	end
+	// apply gravity
 	p.dy += eff_grav * dt
+	// wallcling - overwrite gravity
 	if p.state=="cling" then
 		p.dy = cling_speed
-	end	
-	// jump and double jump
-	if (inp.jump 
-		and not p.hold_jump	
-	 and (p.jumps > 0 
-	 	or p.state == "cling")) then
-	 p.dy = jump_vel
- 	p.hold_jump = true
- 	p.grounded = false
- 	sfx(0)
- 	if p.state == "cling" then
- 		if p.cling_right then
- 			p.x-=1
- 			p.dx = -200
- 		else
- 			p.x+=1
- 			p.dx = 200
- 		end
- 	else
- 		p.jumps -= 1
- 	end
+	end
+	// update coyote timers
+	if (p.grounded) p.coyote=max_coyote
+		if (p.state=="cling") p.wall_coyote=max_coyote
+	if not p.grounded then
+		p.coyote = max(0,p.coyote-1)
+		p.wall_coyote = max(0,p.wall_coyote-1)
+	end
+	// all jumps
+	if inp.jump and not p.hold_jump	then
+		if can_ground_jump() then
+			ground_jump()
+		elseif can_wall_jump() then
+			wall_jump()
+		elseif can_air_jump() then
+			air_jump()
+		end
 	end
 	// clamp velocities
 	local v = sqrt(p.dx*p.dx+p.dy*p.dy)
@@ -294,18 +313,55 @@ function update_vel()
 		p.dx*=vs
 		p.dy*=vs
 	end
-	// dialog state
-	if is_textbox then
-		p.dx = 0
-		p.dy = 0
-	end
 end
 
+function can_ground_jump()
+	return p.grounded or p.coyote>0
+end
+
+function can_air_jump()
+	return p.jumps > 0 
+		or p.coyote>0
+end
+
+function can_wall_jump()
+	return p.has_walljump and
+		(p.state == "cling" or p.wall_coyote>0) 
+end
+
+function ground_jump()
+	p.dy = jump_vel
+ p.hold_jump = true
+ p.grounded = false
+ sfx(0)
+end
+
+function air_jump()
+	p.dy = jump_vel
+ p.hold_jump = true
+ p.grounded = false
+ p.jumps -= 1
+ sfx(0)
+end
+
+function wall_jump()
+	if p.cling_right then
+ 	p.x-=1
+ 	p.dx = -walljump_velx
+ else
+ 	p.x+=1
+ 	p.dx = walljump_velx
+ end
+	p.dy = jump_vel
+ p.hold_jump = true
+ p.grounded = false
+ sfx(0)
+end
+
+// move player according to velocities
 function update_pos()
-	// move player according to velocities
 	move_y(p.dy * dt)
 	move_x(p.dx * dt)
-	
 end
 
 function move_x(mx)
@@ -316,8 +372,9 @@ function move_x(mx)
 		if player_collide(p.x+dir,p.y) then
 			// horizontal collision
 			if not p.grounded then
-				p.state="cling"
+				change_state("cling")
 				p.cling_right=p.dx>0
+				p.grounded=false
 			end
 			p.dx=0.0
 			p.rx=0.0
@@ -390,9 +447,9 @@ function is_collide(x,y)
 end
 
 function change_state(new_state)
+	if (p.state==new_state) return
 	p.fc = 0
 	p.state = new_state
-	
 	// replenish rejumps on land
 	if (new_state == "land" or
 		new_state == "walk" or
@@ -408,55 +465,54 @@ end
 function update_state()
 	// update frame count
 	p.fc += 1
-	if p.state == "dead" then
-		return
-	end
 	// update facing direction
-	if (p.face_r and inp.left) p.face_r=false
-	if (not p.face_r and inp.right) p.face_r=true	
-	
+	p.face_r=inp.right or (p.face_r and not inp.left)
+	// if dead, stay dead
+	if (p.state == "dead")	return
 	// update player state
 	// dy-based changes
-	if (p.falling and not p.state == "cling") then
+	if p.falling and p.state!="cling" then
 		change_state("fall")
 		return
 	end
-	if (p.dy < 0) then
+	if p.dy < 0 
+	 and p.state!="jump" 
+	 and p.state!="cling" then
 		change_state("jump")
 		return
 	end
 	// idle
-	if (p.state == "idle") then
-		if (inp.left or inp.right) then
+	if p.state == "idle" then
+		if inp.left or inp.right then
 			change_state("walk")
 		end
 		return
 	end
 	// walk
-	if (p.state == "walk") then
-		if (not inp.left and not inp.right) then
+	if p.state == "walk" then
+		if not inp.left and not inp.right then
 				change_state("idle")
 		end
 		return
 	end
 	// jump
-	if (p.state == "jump") then
-		if (p.grounded) then
+	if p.state == "jump" then
+		if p.grounded then
 			change_state("land")
 		end
 		return
 	end
 	// fall
-	if (p.state == "fall") then
-		if (p.grounded) then
+	if p.state == "fall" then
+		if p.grounded then
 			change_state("land")
 		end
 		return
 	end	
 	// land
-	if (p.state == "land") then
+	if p.state == "land" then
 		// go to idle after animation is done
-		if (p.fc >= anim_speed_lnd[frames_lnd]) then
+		if p.fc >= anim_speed_lnd[frames_lnd] then
 			change_state("idle")
 		end
 		return
@@ -464,21 +520,18 @@ function update_state()
 	// cling
 	if p.state == "cling" then
 		// lose cling if wall is no longer there
-		if p.cling_right and not is_collide(p.x+p.coll.x2+1,p.y-p.height/2) then
-				change_state("fall")
-		end
-		if not p.cling_right and not is_collide(p.x+p.coll.x1-1,p.y-p.height/2) then
+		local cling_right = p.cling_right and not is_collide(p.x+p.coll.x2+1,p.y-p.height/2)
+		local cling_left = not p.cling_right and not is_collide(p.x+p.coll.x1-1,p.y-p.height/2)
+		if cling_right or cling_left then
 				change_state("fall")
 		end
 		// lose cling if player moves from wall
-		if not inp.left and not p.cling_right then
-			change_state("fall")
-		end
-		if not inp.right and p.cling_right then
+		if (not inp.left and not p.cling_right)
+			or (not inp.right and p.cling_right) then
 			change_state("fall")
 		end
 		// lose cling if land
-		if (p.grounded) then
+		if p.grounded then
 			change_state("land")
 		end
 		return
@@ -532,7 +585,7 @@ function check_kill()
 	if player_kill(p.x,p.y) then
 			game_state="dead"
 			p.dy=jump_vel
-			p.state="dead"
+			change_state("dead")
 			sfx(2)
 		end
 end
@@ -550,16 +603,16 @@ function check_roll_touch()
 			else
 			// open dialogbox with text
 				current_text = dialog[i]
-				is_textbox= true
+				is_textbox = true
 				sfx(4)
 				if i == 1 then
 					// change the max jump
-					max_jumps=2
+					max_jumps=1
 					p.jumps = max_jumps
 					break
 				end
 				if i == 3 then
-					// wall jump here
+					p.has_walljump = true
 					break
 				end
 			end
@@ -619,7 +672,7 @@ function _draw()
 	elseif game_state == "win" then
 		draw_win_screen()
 	elseif game_state == "dead" then
-		if frames_in_dead>30 then
+		if frames_in_dead>dead_anim_frames then
 			draw_dead_screen()
 		else
 			draw_game()
@@ -658,7 +711,7 @@ end
 function draw_coll_rects()
 	local col=8
 	if (player_collide(p.x, p.y)) col=11
-	// sprite
+	// player sprite
 	rect(
 		cam.x+p.x+p.coll.x1,
 		cam.y+p.y+p.coll.y1,
