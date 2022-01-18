@@ -6,20 +6,15 @@ rot_speed=4.0
 move_speed=0.2
 proj_dist=1.5
 backface_culling=true
+draw_vertices=true
 
 function _init()
- // cam
-	cam={}
-	cam.dx=0.0
-	cam.dz=0.0
-	cam.drx=0.0
-	cam.dry=0.0
-	
 	// light
 	light={}
 	light.x = 10.0
 	light.y = -10.0
-	light.z = 10.0	
+	light.z = 10.0
+		
 	// cam position matrix
 	pos_mat= {
 		{1,0,0,0.0},
@@ -57,24 +52,24 @@ end
 --update
 function _update()
 	// inputs
-	cam.dx=0.0
-	cam.dz=0.0
-	cam.drx=0.0
-	cam.dry=0.0
+	local dx=0.0
+	local dz=0.0
+	local drx=0.0
+	local dry=0.0
 	// rotate
-	if (btn(⬆️)) cam.dry=-rot_speed
-	if (btn(⬇️)) cam.dry=rot_speed
-	if (btn(⬅️)) cam.drx=-rot_speed
-	if (btn(➡️)) cam.drx=rot_speed
+	if (btn(⬆️)) dry=-rot_speed
+	if (btn(⬇️)) dry=rot_speed
+	if (btn(⬅️)) drx=-rot_speed
+	if (btn(➡️)) drx=rot_speed
  // translate
-	if (btn(❎)) cam.dz=-move_speed
-	if (btn(🅾️)) cam.dz=move_speed
+	if (btn(❎)) dz=-move_speed
+	if (btn(🅾️)) dz=move_speed
 
 	// update position matrix
-	local dp=get_mov(cam.dx,cam.dz)
+	local dp=get_mov(dx,dz)
 	pos_mat=matmul(dp,pos_mat)
 	// update rotation matrix
-	local dr=get_rot(cam.drx,cam.dry)
+	local dr=get_rot(drx,dry)
 	rot_mat=matmul(dr,rot_mat)
 	
 	// create hom coord matrix
@@ -99,8 +94,7 @@ function _draw()
 	// generate faces
 	local proj_f=generate_faces(proj_v, cur_faces)
 	// render
-	render_faces(proj_f)
-	render_vertices(proj_v)
+	render_faces(proj_f, draw_vertices)
 	// fps info
 	print("fps: "..stat(7).."/"..stat(8),0,0,7)
 end
@@ -111,7 +105,7 @@ function render_vertices(pp)
 	end
 end
 
-function render_faces(faces)
+function render_faces(faces, rend_vert)
 	for i=1,#faces do
 		// backface culling
 		if (faces[i].nz>0 and backface_culling) goto cont
@@ -124,49 +118,20 @@ function render_faces(faces)
 			f.v1[1],f.v1[2],
 			f.v2[1],f.v2[2],
 			f.v3[1],f.v3[2],
-			6,7)
+			get_col(f))
+		if rend_vert then
+			pset(f.v1[1],f.v1[2],8)
+			pset(f.v2[1],f.v2[2],8)
+			pset(f.v3[1],f.v3[2],8)
+		end
 		::cont::
 	end
 end
 
-function generate_faces(pp, face_data)
-	local faces={}
-	for i=1,#face_data do
-		add(faces, create_face(pp, face_data[i]))		
-	end
-	return faces
+function get_col(face)
+	return 6
 end
-
-function create_face(pp, vlist)
-	local face={}
-	face.nx=0
-	face.ny=0
-	face.nz=0
-	// normal
-	local v1=pp[vlist[1]]
-	local v2=pp[vlist[2]]
-	local v3=pp[vlist[3]]
-	local a={
-		v1[1]-v2[1],
-		v1[2]-v2[2],
-		v1[3]-v2[3]}
-	local b={
-		v1[1]-v3[1],
-		v1[2]-v3[2],
-		v1[3]-v3[3]}
-	local n=crossprod(a,b)
-	face.nx=n[1]
-	face.ny=n[2]
-	face.nz=n[3]
-	// vertices
-	face.v1=v1
-	face.v2=v2
-	face.v3=v3
-	return face
-end
-
 function fill_triangle(x1,y1,x2,y2,x3,y3,color1)
-
 	local x1=x1&0xffff
 	local x2=x2&0xffff
 	local y1=y1&0xffff
@@ -345,6 +310,46 @@ function get_rot(dx,dy)
 	rot[4][3]=0
 	rot[4][4]=1	
 	return rot
+end
+
+function generate_faces(pp, face_data)
+	local faces={}
+	for i=1,#face_data do
+		add(faces, create_face(pp, face_data[i]))		
+	end
+	return faces
+end
+
+function create_face(pp, vlist)
+	local face={}
+	face.nx=0
+	face.ny=0
+	face.nz=0
+	// normal
+	local v1=pp[vlist[1]]
+	local v2=pp[vlist[2]]
+	local v3=pp[vlist[3]]
+	local a={
+		v1[1]-v2[1],
+		v1[2]-v2[2],
+		v1[3]-v2[3]}
+	local b={
+		v1[1]-v3[1],
+		v1[2]-v3[2],
+		v1[3]-v3[3]}
+	local n=crossprod(a,b)
+	face.nx=n[1]
+	face.ny=n[2]
+	face.nz=n[3]
+	// vertices
+	face.v1=v1
+	face.v2=v2
+	face.v3=v3
+	// "middle" point
+	face.mx=(v1[1]+v2[1]+v3[1])/3
+	face.my=(v1[2]+v2[2]+v3[2])/3
+	face.mz=(v1[3]+v2[3]+v3[3])/3
+	return face
 end
 -->8
 --data
