@@ -7,20 +7,21 @@ move_speed=0.2
 proj_dist=1.5
 backface_culling=true
 draw_vertices=false
+z_sorting=true
 bright=1
 
 function _init()
 	// light
 	light={}
 	light.x = -10.0
-	light.y = 6.0
+	light.y = 10.0
 	light.z = -10.0
 		
 	// cam position matrix
 	pos_mat= {
 		{1,0,0,0.0},
 		{0,1,0,-5.0},
-		{0,0,1,10.0},
+		{0,0,1,15.0},
 		{0,0,0,1}}
 	pos_mat.rows=4
 	pos_mat.cols=4
@@ -74,9 +75,27 @@ function _update()
 	// update rotation matrix
 	local dr=get_rot(drx,dry)
 	rot_mat=matmul(dr,rot_mat)
+	
+	rotate_light()
+	
+	
 end
 
-
+function rotate_light()
+	local dr=get_rot(rot_speed,0)
+	local lv={
+		{light.x},
+		{light.y},
+		{light.z},
+		{1}}
+	lv.rows=4
+	lv.cols=1
+	local res=matmul(dr,lv)
+	local w=res[4][1]
+	light.x=res[1][1]/w
+	light.y=res[2][1]/w
+	light.z=res[3][1]/w
+end
 -->8
 --draw
 function _draw()
@@ -108,7 +127,9 @@ end
 
 function render_faces(faces, rend_vert)
 	// z-sorting
-	quicksort(faces)
+	if z_sorting then
+		quicksort(faces)
+	end
 	for i=1,#faces do
 		// backface culling
 		if (faces[i].cull_check and backface_culling) goto cont
@@ -142,9 +163,9 @@ function get_col(face)
 	local light=mid(0,diffus,1)
 	if light < 0.1 then
 		return 0
-	elseif light < 0.25 then
+	elseif light < 0.45 then
 	 return 5
-	elseif light <= 0.65 then
+	elseif light <= 0.85 then
 		return 6
 	else
 		return 7
