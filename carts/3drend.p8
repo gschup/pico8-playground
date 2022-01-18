@@ -51,10 +51,14 @@ function _init()
 	
 	// create hom coord matrix
 	hom_v=hom_verts(cur_vertices)
+	
+	// intial orientation
+	local dr=get_rot(-150,0)
+	rot_mat=matmul(dr,rot_mat)
 end
 -->8
 --update
-function _update()
+function _update60()
 	// inputs
 	local dx=0.0
 	local dz=0.0
@@ -114,9 +118,9 @@ function _draw()
 	// generate faces
 	local proj_f=generate_faces(proj_v, trans_v, cur_faces)
 	// render
-	render_faces(proj_f, draw_vertices)
-	// fps info
-	print("fps: "..stat(7).."/"..stat(8),0,0,7)
+	local num_tris=render_faces(proj_f, draw_vertices)
+	// performance info
+	print('cpu:'..flr(stat(1)*100)..'% '..stat(7)..' fps tris:'..num_tris..'/'..#cur_faces,5,5,7)
 end
 
 function render_vertices(pp)
@@ -126,6 +130,7 @@ function render_vertices(pp)
 end
 
 function render_faces(faces, rend_vert)
+	local nf=0
 	// z-sorting
 	if z_sorting then
 		quicksort(faces)
@@ -134,12 +139,14 @@ function render_faces(faces, rend_vert)
 		// backface culling
 		if (faces[i].cull_check and backface_culling) goto cont
 		local f=faces[i]
+		local col=get_col(f)
 		// draw the triangle
 		fill_triangle(
 			f.v1[1],f.v1[2],
 			f.v2[1],f.v2[2],
 			f.v3[1],f.v3[2],
-			get_col(f))
+			col)
+		nf+=1
 		if rend_vert then
 			pset(f.v1[1],f.v1[2],8)
 			pset(f.v2[1],f.v2[2],8)
@@ -147,6 +154,7 @@ function render_faces(faces, rend_vert)
 		end
 		::cont::
 	end
+	return nf
 end
 
 function get_col(face)
@@ -172,6 +180,7 @@ function get_col(face)
 	end
 	return 8
 end
+
 function fill_triangle(x1,y1,x2,y2,x3,y3,color1)
 	local x1=x1&0xffff
 	local x2=x2&0xffff
