@@ -7,15 +7,14 @@ move_speed=0.2
 proj_dist=1.5
 backface_culling=true
 draw_vertices=false
-bright=0.7
-ambient=0.1
+bright=1
 
 function _init()
 	// light
 	light={}
-	light.x = 10.0
-	light.y = 0.0
-	light.z = 0.0
+	light.x = -10.0
+	light.y = 6.0
+	light.z = -10.0
 		
 	// cam position matrix
 	pos_mat= {
@@ -81,19 +80,20 @@ end
 -->8
 --draw
 function _draw()
-	cls(0)
+	cls(1)
 	// rotate, then translate
 	local cam_mat=matmul(pos_mat, rot_mat)
+	// translate vertices
+	local trans_hom_v=matmul(cam_mat,hom_v)
+	local trans_v=hom_to_3d(trans_hom_v)
 	// projection
-	local all_mat=matmul(proj_mat, cam_mat)
-	// project vertices
-	local proj_hom_v=matmul(all_mat,hom_v)
-	// translate vertices back into 3d vectors
+	local proj_hom_v=matmul(proj_mat, trans_hom_v)
+	// hom vertices back into 3d vectors
 	local proj_v=hom_to_3d(proj_hom_v)
 	// translate coordinates to screen size
 	viewport_transform(proj_v)
 	// generate faces
-	local proj_f=generate_faces(proj_v, cur_faces)
+	local proj_f=generate_faces(proj_v, trans_v, cur_faces)
 	// render
 	render_faces(proj_f, draw_vertices)
 	// fps info
@@ -107,9 +107,11 @@ function render_vertices(pp)
 end
 
 function render_faces(faces, rend_vert)
+	// z-sorting
+	quicksort(faces)
 	for i=1,#faces do
 		// backface culling
-		if (faces[i].cull_check>0 and backface_culling) goto cont
+		if (faces[i].cull_check and backface_culling) goto cont
 		local f=faces[i]
 		// draw the triangle
 		fill_triangle(
@@ -137,11 +139,12 @@ function get_col(face)
 	lv[2]=lv[2]/ll
 	lv[3]=lv[3]/ll 
 	local diffus=bright*dotprod(lv, face.n)
-	diffus=max(0,diffus)
-	local light=min(diffus+ambient,1)
-	if light < 0.3 then
-		return 5
-	elseif light < 0.7 then
+	local light=mid(0,diffus,1)
+	if light < 0.1 then
+		return 0
+	elseif light < 0.25 then
+	 return 5
+	elseif light <= 0.65 then
 		return 6
 	else
 		return 7
@@ -281,9 +284,10 @@ end
 function hom_to_3d(hp)
 	local v={}
 	for i=1,hp.cols do
-		local px=hp[1][i]/hp[4][i]
-		local py=hp[2][i]/hp[4][i]
-		local pz=hp[3][i]/hp[4][i]
+		local w=hp[4][i]
+		local px=hp[1][i]/w
+		local py=hp[2][i]/w
+		local pz=hp[3][i]/w
 		add(v,{px,py,pz})
 	end
 	return v
@@ -329,14 +333,6 @@ function get_rot(dx,dy)
 	return rot
 end
 
-function generate_faces(pp, face_data)
-	local faces={}
-	for i=1,#face_data do
-		add(faces, create_face(pp, face_data[i], i))		
-	end
-	return faces
-end
-
 function vec_len(a)
  local sum=0
  for i=1,#a do
@@ -371,29 +367,37 @@ function create_normals()
  return fn
 end
 
-function create_face(pp, vlist, fid)
-	local face={}
-	local v1=pp[vlist[1]]
-	local v2=pp[vlist[2]]
-	local v3=pp[vlist[3]]
-	// backface culling check
-	// z-coord of transformed normal
-	face.cull_check=
-		(v1[1]-v2[1])*(v1[2]-v3[2])
-		-(v1[2]-v2[2])*(v1[1]-v3[1])
-	// vertices
-	face.v1=v1
-	face.v2=v2
-	face.v3=v3
-	// normal - not transformed
-	face.n=cur_normals[fid]
-	// "middle" point
-	face.mx=(v1[1]+v2[1]+v3[1])/3
-	face.my=(v1[2]+v2[2]+v3[2])/3
-	face.mz=(v1[3]+v2[3]+v3[3])/3
-	// z-sorting
-	face.z_sort=face.mz
-	return face
+function generate_faces(pp, tp, face_data)
+	local faces={}
+	for fid=1,#face_data do
+		local vlist=face_data[fid]
+		local face={}
+		local v1=pp[vlist[1]]
+		local v2=pp[vlist[2]]
+		local v3=pp[vlist[3]]
+		// z-sorting - kinda bad like this
+		face.z_sort=-tp[vlist[1]][3]
+		// backface culling check
+		// z-coord of transformed normal
+		face.cull_check=
+			((v1[1]-v2[1])*(v1[2]-v3[2])
+			-(v1[2]-v2[2])*(v1[1]-v3[1]))>0
+		// vertices
+		face.v1=v1
+		face.v2=v2
+		face.v3=v3
+		// normal - not transformed
+		face.n=cur_normals[fid]
+		// "middle" point - not transformed
+		local w1=cur_vertices[vlist[1]]
+		local w2=cur_vertices[vlist[2]]
+		local w3=cur_vertices[vlist[3]]
+		face.mx=(w1[1]+w2[1]+w3[1])/3
+		face.my=(w1[2]+w2[2]+w3[2])/3
+		face.mz=(w1[3]+w2[3]+w3[3])/3
+		add(faces,face)	
+	end
+	return faces
 end
 
 function quicksort(t, start, endi)
@@ -401,7 +405,7 @@ function quicksort(t, start, endi)
 	if (endi - start < 1) return t
 	local pivot = start
 	for i = start + 1, endi do
-		if t[i].z_sort > t[pivot].z_sort then
+		if t[i].z_sort <= t[pivot].z_sort then
 			if i == pivot + 1 then
 				t[pivot],t[pivot+1] = t[pivot+1],t[pivot]
 			else
