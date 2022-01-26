@@ -253,8 +253,7 @@ function update_vel()
 	// horizontal movement
 	if (inp.left) p.dx -= mov
 	if (inp.right) p.dx += mov
-	p.dx = min(p.dx,max_mov)
-	p.dx = max(p.dx,-max_mov)
+	p.dx=mid(-max_mov, p.dx, max_mov)
 	// slow down horizontally
 	if (not inp.left 
 		and not inp.right) then
@@ -683,16 +682,11 @@ function update_cam_pos()
 	local cam_barr_y=32
  // camera never exceeds a max
  // distance to the player
- cam.x=max(cam.x,-p.x+64-cam_barr_x)
- cam.x=min(cam.x,-p.x+64+cam_barr_x)
- cam.y=max(cam.y,-p.y+64-cam_barr_y)
- cam.y=min(cam.y,-p.y+64+cam_barr_y)
-	
+ cam.x=mid(cam.x,-p.x+64-cam_barr_x,-p.x+64+cam_barr_x)
+ cam.y=mid(cam.y,-p.y+64-cam_barr_y,-p.y+64+cam_barr_y)
 	// clamp camera to map bounds
-	cam.x=min(cam.x,0)
-	cam.y=min(cam.y,0)
-	cam.x=max(cam.x,-map_size_x+128)
-	cam.y=max(cam.y,-map_size_y+128)
+	cam.x=mid(0,cam.x,-map_size_x+128)
+	cam.y=mid(0,cam.y,-map_size_y+128)
 end
 
 function draw_coll_rects()
